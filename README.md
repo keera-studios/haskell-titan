@@ -6,6 +6,31 @@ interactive software.
 It is built on the principles of Functional Reactive Programming, although it's
 ideas can be applied to other time-based abstractions.
 
+## Architecture
+
+Haskell Titan is composed of two parts: testing facilities and debugging
+facilities.
+
+The testing facilities allow you to: 1) describe and test temporal unit
+tests, and 2) test FRP programs using QuickCheck (both using real traces or
+unit tests)
+
+The debugging facilities allow you to: 1) record and replay FRP programs in a
+referentially transparent manner and 2) debug programs as you run them.
+
+Part of the testing facilities have been introduced in Yampa's repository
+directly, and you can find them at:
+
+https://github.com/ivanperez-keera/Yampa
+
+In this repo you will find:
+
+- An extension of Yampa to run programs recording their input and debugging
+  them.
+
+- An interactive debugging GUI to connect to a running Yampa program and
+  control it remotely.
+
 # Collaborations
 
 Please, send pull requests and file bugs.
