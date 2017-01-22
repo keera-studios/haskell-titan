@@ -22,7 +22,7 @@ executable yampa-debugging-gui
   ghc-options:         -threaded -Wall
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <4.9,
                        keera-hails-reactivevalues,
                        keera-hails-mvc-controller,
                        keera-hails-mvc-view,
@@ -47,7 +47,7 @@ library
 
   -- Modules exported by the library.
   Exposed-modules: Graphics.UI.Gtk.StreamChart
-  build-depends:   base >=4.7 && <4.8,
+  build-depends:   base >=4.7 && <4.9,
                    gtk,
                    cairo,
                    glib
