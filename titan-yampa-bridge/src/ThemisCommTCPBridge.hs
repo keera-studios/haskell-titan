@@ -10,8 +10,8 @@ import Control.Concurrent
 import Control.Concurrent.MVar
 import System.IO
 
-mkThemisCommTCPBridge :: Int -> IO ExternalBridge
-mkThemisCommTCPBridge port = do
+mkThemisCommTCPBridge :: IO ExternalBridge
+mkThemisCommTCPBridge = do
   outChannel   <- newMVar []
   eventChannel <- newMVar []
   getChannel   <- newMVar []
