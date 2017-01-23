@@ -1,7 +1,22 @@
 name:                titan-yampa-bridge
 version:             0.1.0.0
-synopsis:            Interactive Yampa debugger.
--- description:         
+synopsis:            Testing Infrastructure for Temporal AbstractioNs - Interactive Yampa debugging layer.
+description:
+  Yampa debugger that allows you to run an FRP program and control its
+  execution.
+  .
+  TITAn (Testing Infrastructure for Temporal Abstractions) is a framework to
+  test and debug FRP programs. It allows you to write temporal unit test, check
+  them, QuickCheck them, run Yampa programs with a fine-tuned debugger, obtain
+  information to replicate tests, and follow and control the execution of a
+  Yampa program from an interactive GUI.
+  .
+  This library provides a replacement function for Yampa's standard simulation
+  function (@reactimate@), enabling debugging.
+  .
+  It also provides a definition of the standard communication interface with
+  the debugging GUI, and a default implementation of a communication bridge
+  suitable for standalone desktop applications using TCP sockets.
 homepage:            http://keera.co.uk
 license:             GPL-3
 license-file:        LICENSE
