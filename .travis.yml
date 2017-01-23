@@ -19,9 +19,10 @@ install:
  - travis_retry cabal update
 
 script:
+ - travis_retry git clone https://github.com/ivanperez-keera/Yampa
  - travis_retry cabal sandbox init
-# - travis_retry cabal install Yampa -fexpose-core
-# - travis_retry cabal install titan-yampa-bridge/
+ - travis_retry cabal install Yampa/ -fexpose-core
+ - travis_retry cabal install titan-yampa-bridge/
  - travis_retry cabal install titan-yampa-gui/
 
 notifications:
