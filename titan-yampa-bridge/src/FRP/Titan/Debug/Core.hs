@@ -4,6 +4,8 @@
 {-# LANGUAGE FunctionalDependencies      #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind -Wall #-}
 
+-- | Replacement of Yampa's @reactimate@ function with more fine-tuned
+-- control and debugging capabilities.
 module FRP.Titan.Debug.Core where
 
 import Control.Monad
@@ -13,22 +15,17 @@ import FRP.Yampa.InternalCore (SF(..), SF'(..), sfTF', DTime)
 
 import FRP.Titan.Debug.Comm
 
-class Read p => Pred p i o | p -> i, p -> o where
-  evalPred :: p -> Maybe DTime -> i -> o -> Bool
-
--- TODO: Possibly use this:
--- https://hackage.haskell.org/package/hint
-
 -- * Interactive reactimation
 
+-- | Start a Yampa program with interactive debugging enabled.
 reactimateControl :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                  => ExternalBridge 
-                  -> Preferences
-                  -> [Command p]
-                  -> IO a
-                  -> (Bool -> IO (DTime, Maybe a))
-                  -> (Bool -> b -> IO Bool)
-                  -> SF a b
+                  => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
+                  -> Preferences                    -- ^ Debug: Debugging preferences
+                  -> [Command p]                    -- ^ Debug: List of initial commands execute
+                  -> IO a                           -- ^ FRP:   Initial sensing action 
+                  -> (Bool -> IO (DTime, Maybe a))  -- ^ FRP:   Continued sensing action
+                  -> (Bool -> b -> IO Bool)         -- ^ FRP:   Rendering/consumption action
+                  -> SF a b                         -- ^ FRP:   Signal Function that defines the program
                   -> IO ()
 reactimateControl bridge prefs commandQ init sense actuate sf = do
 
@@ -124,16 +121,17 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
       ebSendEvent bridge   "PingSent"
       reactimateControl bridge prefs commandQ' init sense actuate sf
 
+-- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                   => ExternalBridge 
-                   -> Preferences
-                   -> ((a, SF a b), [(a, DTime, SF' a b)])
-                   -> [Command p]
-                   -> IO a
-                   -> (Bool -> IO (DTime, Maybe a))
-                   -> (Bool -> b -> IO Bool)
-                   -> SF' a b
-                   -> a
+                   => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
+                   -> Preferences                               -- ^ Debug: Debugging preferences
+                   -> ((a, SF a b), [(a, DTime, SF' a b)])      -- ^ Execution History: list of inputs and SF continuations
+                   -> [Command p]                               -- ^ Debug: List of initial commands execute
+                   -> IO a                                      -- ^ FRP:   Initial sensing action 
+                   -> (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
+                   -> (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
+                   -> SF' a b                                   -- ^ FRP:   Signal Function that defines the program
+                   -> a                                         -- ^ Debug: Last known input
                    -> IO ()
 reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInput = do
   (command,commandQ') <- getCommand bridge commandQ
@@ -271,8 +269,36 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
       ebSendEvent bridge   "PingSent"
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
--- * Command Queue
+-- * Commands
 
+-- | An interactive, debugging command.
+data Command p = Step                       -- ^ Execute a complete simulation cycle
+               | StepUntil p                -- ^ Execute cycles until a predicate holds
+               | SkipUntil p                -- ^ Skip cycles until a predicate holds
+               | SkipSense                  -- ^ Skip cycle while sensing the input
+               | Redo                       -- ^ Re-do the last step
+               | SkipBack                   -- ^ Jump one step back in the simulation
+               | JumpTo Int                 -- ^ Jump to a specific frame
+               | Exit                       -- ^ Stop the simulation and exit the program
+               | Play                       -- ^ Start executing normally
+               | Pause                      -- ^ Pause the simulation
+               | Stop                       -- ^ Stop the simulation
+               | ReloadTrace      String    -- ^ Reload the Trace from a file (not implemented yet)
+               | IOSense                    -- ^ Sense input                  (not implemented yet)
+               | GetCurrentFrame            -- ^ Obtain the current frame     (not implemented yet)
+               | TravelToFrame    Int       -- ^ Simulate up to a particular frame   (not implemented yet)
+               | TeleportToFrame  Int       -- ^ Skip to a particular frame (not implemented)
+               | SummarizeHistory           -- ^ Print summary information about the history
+               | SetPrefDumpInput Bool      -- ^ Alter simulation preferences
+               | GetPrefDumpInput           -- ^ Obtain simulation preferences
+               | Ping                       -- ^ Debugging: send a pong back to the GUI
+ deriving (Eq, Read, Show)
+
+-- ** Command Queue
+
+-- | Obtain a command from the command queue, polling the communication
+--   bridge if the queue is empty.
+getCommand :: (Read a, Show a) => ExternalBridge -> [a] -> IO (Maybe a, [a])
 getCommand bridge (c:cs) = return (Just c, cs)
 getCommand bridge [] = do
   mLines <- filter (not . null) <$> getAllMessages bridge
@@ -286,31 +312,8 @@ getCommand bridge [] = do
     (c:cs) -> return (Just c, cs)
 
 -- | Place one command on the top of the queue.
+pushCommand :: [a] -> a -> [a]
 pushCommand cs c = c:cs
-
--- * Commands
-
-data Command p = Step
-               | StepUntil p
-               | SkipUntil p
-               | SkipSense
-               | Redo
-               | SkipBack
-               | JumpTo Int
-               | Exit
-               | Play
-               | Pause
-               | Stop
-               | ReloadTrace      String
-               | IOSense
-               | GetCurrentFrame
-               | TravelToFrame    Int
-               | TeleportToFrame  Int
-               | SummarizeHistory
-               | SetPrefDumpInput Bool
-               | GetPrefDumpInput
-               | Ping
- deriving (Eq, Read, Show)
 
 -- * Simulation preferences
 data Preferences = Preferences
@@ -319,6 +322,20 @@ data Preferences = Preferences
 defaultPreferences :: Preferences
 defaultPreferences = Preferences
   { dumpInput = False }
+
+-- * Debugging predicates
+
+-- | A notion of temporal point-wise (time-wise) predicate to be tested
+-- during a simulation point. It needs to be something we can read
+-- from the GUI bridge so that we can interactively read commands
+-- from the user and test them.
+
+-- TODO: Possibly use this:
+-- https://hackage.haskell.org/package/hint
+
+class Read p => Pred p i o | p -> i, p -> o where
+  -- | Evaluate a predicate for a given input sample and a given output.
+  evalPred :: p -> Maybe DTime -> i -> o -> Bool
 
 -- ** Utility functions
 
