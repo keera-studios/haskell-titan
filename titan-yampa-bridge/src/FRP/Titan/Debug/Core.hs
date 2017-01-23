@@ -4,14 +4,14 @@
 {-# LANGUAGE FunctionalDependencies      #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind -Wall #-}
 
-module ThemisCore where
+module FRP.Titan.Debug.Core where
 
 import Control.Monad
 import Data.Maybe
 import FRP.Yampa        as Yampa
 import FRP.Yampa.InternalCore (SF(..), SF'(..), sfTF', DTime)
 
-import ThemisCommBridge
+import FRP.Titan.Debug.Comm
 
 class Read p => Pred p i o | p -> i, p -> o where
   evalPred :: p -> Maybe DTime -> i -> o -> Bool

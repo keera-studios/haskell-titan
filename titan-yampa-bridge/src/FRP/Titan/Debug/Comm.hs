@@ -1,4 +1,4 @@
-module ThemisCommBridge where
+module FRP.Titan.Debug.Comm where
 
 data ExternalBridge = ExternalBridge
   { ebPrint     :: String -> IO ()

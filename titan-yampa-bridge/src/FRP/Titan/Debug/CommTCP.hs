@@ -1,14 +1,17 @@
-module ThemisCommTCPBridge where
+module FRP.Titan.Debug.CommTCP where
 
-import ThemisCommBridge
+-- External modules
 import Control.Concurrent
-import Data.Bits
-import Network.Socket
-import Network.BSD
-import Data.List
 import Control.Concurrent
 import Control.Concurrent.MVar
+import Data.Bits
+import Data.List
+import Network.BSD
+import Network.Socket
 import System.IO
+
+-- Internal modules
+import FRP.Titan.Debug.Comm
 
 mkThemisCommTCPBridge :: IO ExternalBridge
 mkThemisCommTCPBridge = do

@@ -8,8 +8,8 @@ import Graphics.UI.SDL as SDL
 import Graphics.UI.SDL.Primitives as SDL
 import FRP.Yampa       as Yampa
 import Data.IORef
-import ThemisCore
-import ThemisCommTCPBridge
+import FRP.Titan.Debug.Core
+import FRP.Titan.Debug.CommTCP
 
 width :: Num a => a
 width  = 640
