@@ -45,7 +45,7 @@ library
 executable titan-yampa-debugger-example-bouncing-ball
   main-is: BouncingBall.hs
   hs-source-dirs:  examples/
-  ghc-options : -O3 -Wall -fno-warn-name-shadowing -rtsopts
+  ghc-options : -O3 -Wall -fno-warn-name-shadowing -rtsopts -threaded
   build-Depends: base < 5, SDL, SDL-gfx, Yampa, titan-yampa-debugger
   if !flag(examples)
     buildable: False

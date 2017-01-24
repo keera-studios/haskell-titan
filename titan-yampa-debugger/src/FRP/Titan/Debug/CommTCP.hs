@@ -157,6 +157,7 @@ serveSync port handlerfunc = withSocketsDo $
           procMessages :: MVar () -> Socket -> SockAddr -> IO ()
           procMessages lock connsock clientaddr =
               do connhdl <- socketToHandle connsock ReadWriteMode
+                 putStrLn ("Connected " ++ show clientaddr)
                  hSetBuffering connhdl LineBuffering
                  let processMessage = do
                        message   <- hGetLine connhdl
