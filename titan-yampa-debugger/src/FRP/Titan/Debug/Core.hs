@@ -151,6 +151,19 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
       ebSendEvent bridge   "PingSent"
       reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    -- TODO: Step forward
+    Just Play -> do
+      a0 <- init
+      when (dumpInput prefs) $ print a0
+
+      let tf0      = sfTF sf
+          (sf',b0) = tf0 a0
+      _ <- actuate True b0
+      ebSendEvent bridge "CurrentFrameChanged"
+      let commandQ'' = if null commandQ' then [Play] else commandQ'
+
+      reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
+
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
@@ -298,6 +311,23 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
       ebSendMsg bridge "Pong"
       ebSendEvent bridge   "PingSent"
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just Play -> do
+      (dt, ma') <- sense False
+      let a'       = fromMaybe lastInput ma'
+          (sf',b') = (sfTF' sf) dt a'
+      when (dumpInput prefs) $ print a'
+      (ebPrint bridge) ("Sample was " ++ show (dt, a') ++ " returned (" ++ show b' ++ ")")
+
+      last <- actuate True b'
+      ebSendEvent bridge   "CurrentFrameChanged"
+
+      let ((a0, sf0), prevs) = previous
+
+      let commandQ'' = if null commandQ' then [Play] else commandQ'
+
+      unless last $
+        reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
     Just Pause ->
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
