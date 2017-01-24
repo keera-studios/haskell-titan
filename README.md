@@ -6,8 +6,6 @@ interactive software.
 It is built on the principles of Functional Reactive Programming, although it's
 ideas can be applied to other time-based abstractions.
 
-## Architecture
-
 Haskell Titan is composed of two parts: testing facilities and debugging
 facilities.
 
@@ -30,6 +28,22 @@ In this repo you will find:
 
 - An interactive debugging GUI to connect to a running Yampa program and
   control it remotely.
+
+## Getting started
+
+### Debugging
+
+It's easier to get started with an example:
+
+```
+$ git clone https://github.com/keera-studios/haskell-titan
+$ cd haskel-titan
+$ cabal sandbox init
+$ cabal install -fexamples titan-yampa-debugger/
+$ cabal install titan-yampa-gui/
+$ ./.cabal-sandbox/bin/titan-yampa-gui &
+$ ./.cabal-sandbox/bin/titan-yampa-debugger-example-bouncing-ball
+```
 
 # Collaborations
 
