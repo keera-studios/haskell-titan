@@ -40,8 +40,8 @@ $ git clone https://github.com/keera-studios/haskell-titan
 $ cd haskel-titan
 $ cabal sandbox init
 $ cabal install -fexamples titan-yampa-debugger/
-$ cabal install titan-yampa-gui/
-$ ./.cabal-sandbox/bin/titan-yampa-gui &
+$ cabal install titan-gui/
+$ ./.cabal-sandbox/bin/titan-gui &
 $ ./.cabal-sandbox/bin/titan-yampa-debugger-example-bouncing-ball
 ```
 
