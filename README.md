@@ -47,6 +47,11 @@ $ ./.cabal-sandbox/bin/titan-gui &
 $ ./.cabal-sandbox/bin/titan-yampa-debugger-example-bouncing-ball
 ```
 
+You'll need GTK with glade installed. On Ubuntu you can:
+```
+$ apt-get install libglade2-dev
+```
+
 # Collaborations
 
 Please, send pull requests and file bugs.
