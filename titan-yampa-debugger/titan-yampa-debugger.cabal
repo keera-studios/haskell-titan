@@ -36,7 +36,7 @@ library
   exposed-modules:     FRP.Titan.Debug.Core
                        FRP.Titan.Debug.Comm
                        FRP.Titan.Debug.CommTCP
-  build-depends:       base >=4.8 && < 4.11,
+  build-depends:       base >=4.7 && < 4.11,
                        Yampa,
                        network
   hs-source-dirs:      src
