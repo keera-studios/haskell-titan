@@ -11,6 +11,7 @@ import Graphics.UI.Gtk
 import Network.BSD
 import Network.Socket
 import System.IO
+import Foreign.Ptr
 
 type IOBridge = IORef IOBridge'
 
@@ -84,7 +85,7 @@ openYampaEventHandle = do
   connect sock (addrAddress serveraddr)
 
   -- Make a Handle out of it for convenience
-  h <- socketToHandle sock ReadMode
+  h <- socketToHandle sock ReadWriteMode
 
   -- We're going to set buffering to BlockBuffering and then
   -- explicitly call hFlush after each message, below, so that
@@ -141,7 +142,7 @@ getFromYampaSocketSync' ioBridgeRef = do
 
 getFromEventSocketSync ioBridgeRef =
   catch (getFromEventSocketSync' ioBridgeRef)
-        (\(e :: IOException) -> do hPutStrLn stderr ("Reading failed")
+        (\(e :: IOException) -> do hPutStrLn stderr ("Reading failed " ++ show e)
                                    return Nothing)
 
 getFromEventSocketSync' ioBridgeRef = do
@@ -149,8 +150,13 @@ getFromEventSocketSync' ioBridgeRef = do
   let mSocket = yampaSocket ioBridge
   case mSocket of
     Nothing     -> return Nothing
-    Just socket -> do s <- hGetLine  (eventHandle socket)
-                      return (Just s)
+    Just socket -> do eof <- hIsEOF (eventHandle socket)
+                      if eof
+                        then do putStrLn "Got nothing in the event log"
+                                return Nothing
+                        else do s <- hGetLine  (eventHandle socket)
+                                putStrLn $ "Event log got: " ++ show s
+                                return (Just s)
 
 sendToYampaSocketAsync ioBridgeRef msg =
   catch (sendToYampaSocketAsync' ioBridgeRef msg)

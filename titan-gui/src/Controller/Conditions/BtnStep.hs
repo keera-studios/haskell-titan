@@ -251,11 +251,10 @@ conditionVMConnect cenv =
   catch (do startYampaSocket (extra cenv)
             r <- getFromYampaSocketSync (extra cenv)
             print r
-            -- eventField <- pollingReactive (getFromEventSocketSync (extra cenv)) (Just 10)
-            -- debugEntry <- txtDebug (uiBuilder (view cenv))
-            -- let debugEntrySetter v = postGUIAsync (get debugEntry textViewBuffer >>= (\b -> set b [textBufferText := v]))
-            -- -- debugEntry <- textViewTextReactive <$> 
-            -- liftR show eventField =:> debugEntrySetter
+            eventField <- pollingReactive (getFromEventSocketSync (extra cenv)) (Just 10)
+            debugEntry <- txtDebug (uiBuilder (view cenv))
+            let debugEntrySetter v = postGUIAsync (get debugEntry textViewBuffer >>= (\b -> set b [textBufferText := v]))
+            liftR show eventField =:> debugEntrySetter
               
         )
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")

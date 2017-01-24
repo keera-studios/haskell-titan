@@ -55,9 +55,11 @@ mkSendMsg outChannel getChannel = void $
 --   pushes them out a socket.
 mkSendEvent :: MVar [String] -> IO ()
 mkSendEvent channel = void $
-  forkIO $ serveAsync "8082" $ \_ handle -> do
+  forkIO $ serveAsync "8082" $ \_ handle -> forever $ do
+    putStrLn "Trying to send outgoing events"
     var <- takeMVar channel
     putMVar channel []
+    mapM_ (putStrLn . ("Sending to the event log: " ++) . show) var
     mapM_ (hPutStrLn handle) var
 
 type HandlerFunc = SockAddr -> String -> IO [String]
@@ -93,20 +95,22 @@ serveAsync port handlerfunc = withSocketsDo $
     where
           -- | Process incoming connection requests
           procRequests :: MVar () -> Socket -> IO ()
-          procRequests lock mastersock = 
-              do (connsock, clientaddr) <- accept mastersock
-                 -- handle lock clientaddr
-                 --    "syslogtcpserver.hs: client connnected"
-                 forkIO $ procMessages lock connsock clientaddr
-                 procRequests lock mastersock
+          procRequests lock mastersock = do
+            (connsock, clientaddr) <- accept mastersock
+            -- handle lock clientaddr
+            --    "syslogtcpserver.hs: client connnected"
+            forkIO $ procMessages lock connsock clientaddr
+            procRequests lock mastersock
 
           -- | Process incoming messages
           procMessages :: MVar () -> Socket -> SockAddr -> IO ()
-          procMessages lock connsock clientaddr =
-              do connhdl <- socketToHandle connsock ReadWriteMode
-                 hSetBuffering connhdl LineBuffering
-                 handle lock clientaddr connhdl
-                 hClose connhdl
+          procMessages lock connsock clientaddr = do
+            connhdl <- socketToHandle connsock ReadWriteMode
+            hSetBuffering connhdl LineBuffering
+            hPutStrLn connhdl "DHello 0"
+            hFlush connhdl
+            handle lock clientaddr connhdl
+            hClose connhdl
 
           -- Lock the handler before passing data to it.
           handle :: MVar () -> HandlerFunc'
