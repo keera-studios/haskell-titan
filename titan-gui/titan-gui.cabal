@@ -44,6 +44,7 @@ executable titan-gui
                        cairo,
                        glib,
                        gtk,
+                       mtl,
                        template-haskell,
                        network
   hs-source-dirs:      src
