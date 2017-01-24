@@ -1,4 +1,4 @@
-name:                titan-yampa-debugger.
+name:                titan-yampa-debugger
 version:             0.1.0.0
 synopsis:            Testing Infrastructure for Temporal AbstractioNs - Interactive Yampa debugging layer.
 description:
