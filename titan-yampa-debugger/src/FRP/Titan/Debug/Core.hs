@@ -69,7 +69,9 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
     Just Redo -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Print summary information about the history
-    Just SummarizeHistory -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just SummarizeHistory -> do
+      (ebPrint bridge) ("CurrentHistory 0")
+      reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Skip cycle while sensing the input
     Just SkipSense -> do
@@ -164,6 +166,14 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
       reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
 
+    Just GetCurrentTime -> do
+      ebSendMsg bridge ("CurrentTime " ++ show 0)
+      reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    Just GetCurrentFrame -> do
+      ebSendMsg bridge ("CurrentFrame " ++ show 0)
+      reactimateControl bridge prefs commandQ' init sense actuate sf
+
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
@@ -189,6 +199,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
       let ((a0, sf0), ps) = previous
           num             = length ps
       (ebPrint bridge) ("CurrentHistory " ++ show num)
+      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
     Just (JumpTo n) -> do
       let ((a0, sf0), ps) = previous
@@ -332,6 +343,18 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     Just Pause ->
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    Just GetCurrentTime -> do
+      let ((a0, sf0), ps) = previous
+          num             = sum $ map (\(_,dt,_) -> dt) ps
+      ebSendMsg bridge ("CurrentTime " ++ show num)
+      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just GetCurrentFrame -> do
+      let ((a0, sf0), ps) = previous
+          num             = length ps
+      ebSendMsg bridge ("CurrentFrame " ++ show num)
+      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    
     o ->
       putStrLn $ show o
 
@@ -351,7 +374,8 @@ data Command p = Step                       -- ^ Execute a complete simulation c
                | Stop                       -- ^ Stop the simulation
                | ReloadTrace      String    -- ^ Reload the Trace from a file (not implemented yet)
                | IOSense                    -- ^ Sense input                  (not implemented yet)
-               | GetCurrentFrame            -- ^ Obtain the current frame     (not implemented yet)
+               | GetCurrentFrame            -- ^ Obtain the current frame
+               | GetCurrentTime             -- ^ Obtain the current time      (not implemented yet)
                | TravelToFrame    Int       -- ^ Simulate up to a particular frame   (not implemented yet)
                | TeleportToFrame  Int       -- ^ Skip to a particular frame (not implemented)
                | SummarizeHistory           -- ^ Print summary information about the history
@@ -376,6 +400,7 @@ stopPlayingCommand (Stop)               = True
 stopPlayingCommand (ReloadTrace _)      = True
 stopPlayingCommand (IOSense)            = True
 stopPlayingCommand (GetCurrentFrame)    = False
+stopPlayingCommand (GetCurrentTime)     = False
 stopPlayingCommand (TravelToFrame _)    = True
 stopPlayingCommand (TeleportToFrame _)  = True 
 stopPlayingCommand (SummarizeHistory)   = False

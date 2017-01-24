@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module IOBridge where
 
+import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.Bits
@@ -115,7 +116,7 @@ startYampaSocket ioBridgeRef = do
 
 sendToYampaSocketSync ioBridgeRef msg =
   catch (sendToYampaSocketSync' ioBridgeRef msg)
-        (\(e :: IOException) -> do hPutStrLn stderr ("Send failed when trying to send " ++ msg)
+        (\(e :: IOException) -> do hPutStrLn stderr ("Send failed when trying to send " ++ msg ++ " with " ++ show e)
                                    return Nothing)
 
 sendToYampaSocketSync' ioBridgeRef msg = do
@@ -124,7 +125,8 @@ sendToYampaSocketSync' ioBridgeRef msg = do
   case mSocket of
     Nothing     -> return Nothing
     Just socket -> do hPutStrLn (commHandle socket) msg
-                      s <- hGetLine  (commHandle socket)
+                      waitForInput (commHandle socket) 10000
+                      s <- hGetLine (commHandle socket)
                       return (Just s)
 
 getFromYampaSocketSync ioBridgeRef =
@@ -169,3 +171,9 @@ sendToYampaSocketAsync' ioBridgeRef msg = do
   case mSocket of
     Nothing     -> return ()
     Just socket -> hPutStrLn (commHandle socket) msg
+
+waitForInput handle n = do
+  eof <- hIsEOF handle
+  when eof $ do
+    threadDelay n
+    waitForInput handle n

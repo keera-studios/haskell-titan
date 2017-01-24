@@ -4,6 +4,7 @@ module Controller.Conditions.BtnStep where
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Data.Maybe
 import Data.ReactiveValue
 import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Reactive
@@ -255,9 +256,19 @@ conditionVMConnect cenv =
             debugEntry <- txtDebug (uiBuilder (view cenv))
             let debugEntrySetter v = postGUIAsync (get debugEntry textViewBuffer >>= (\b -> set b [textBufferText := v]))
             liftR show eventField =:> debugEntrySetter
+            ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMFrameChanged cenv
               
         )
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")
+
+-- | Make this reactive
+conditionVMFrameChanged cenv = do
+  entry <- txtGlobalTime (uiBuilder (view cenv))
+  n <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
+  putStrLn $ "Received " ++ show n
+  case maybe [] words n of
+    ["CurrentTime", m] -> entrySetText entry m
+    _                  -> return ()
 
 conditionVMDisconnect cenv =
   catch (stopYampaSocket (extra cenv))
