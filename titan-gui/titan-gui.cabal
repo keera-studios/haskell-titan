@@ -12,7 +12,7 @@ description:
   test and debug FRP programs. It allows you to write temporal unit tests, check
   them, QuickCheck them, run FRP programs with a fine-tuned debugger, obtain
   information to replicate tests, and follow and control the execution of a
-  Yampa program from an interactive GUI.
+  FRP program from an interactive GUI.
   .
   This program provides a GUI to connect to a running game and control its
   execution.
