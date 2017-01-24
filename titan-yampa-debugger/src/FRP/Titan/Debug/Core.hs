@@ -23,6 +23,7 @@ module FRP.Titan.Debug.Core
     ) 
   where
 
+import Control.Applicative ((<$>))
 import Control.Monad
 import Data.Maybe
 import FRP.Yampa        as Yampa
