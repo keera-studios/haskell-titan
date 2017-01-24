@@ -331,6 +331,10 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
     Just Pause ->
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    o ->
+      putStrLn $ show o
+
 -- * Commands
 
 -- | An interactive, debugging command.
