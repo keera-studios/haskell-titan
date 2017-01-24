@@ -365,15 +365,14 @@ data Command p = Step                       -- ^ Execute a complete simulation c
 -- | Obtain a command from the command queue, polling the communication
 --   bridge if the queue is empty.
 getCommand :: (Read a, Show a) => ExternalBridge -> [a] -> IO (Maybe a, [a])
-getCommand bridge (c:cs) = return (Just c, cs)
-getCommand bridge [] = do
+getCommand bridge cmds = do
   mLines <- filter (not . null) <$> getAllMessages bridge
   let cmLines = map maybeRead mLines
       cLines  = catMaybes cmLines
   unless (null mLines) $ do
     (ebPrint bridge) (show mLines)
     (ebPrint bridge) (show cmLines)
-  case cLines of
+  case cmds ++ cLines of
     [] -> return (Nothing, [])
     (c:cs) -> return (Just c, cs)
 
