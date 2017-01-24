@@ -28,6 +28,10 @@ build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
+flag examples
+  default: False
+  manual: True
+
 library
   exposed-modules:     FRP.Titan.Debug.Core
                        FRP.Titan.Debug.Comm
@@ -37,3 +41,11 @@ library
                        network
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+executable titan-yampa-debugger-example-bouncing-ball
+  main-is: BouncingBall.hs
+  hs-source-dirs:  examples/
+  ghc-options : -O3 -Wall -fno-warn-name-shadowing -rtsopts
+  build-Depends: base < 5, SDL, Yampa
+  if !flag(examples)
+    buildable: False
