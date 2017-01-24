@@ -49,3 +49,7 @@ executable titan-yampa-debugger-example-bouncing-ball
   build-Depends: base < 5, SDL, Yampa
   if !flag(examples)
     buildable: False
+
+source-repository head
+  type:     git
+  location: git://github.com/keera-studios/haskell-titan.git
