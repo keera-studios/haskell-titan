@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleInstances           #-}
-{-# LANGUAGE TypeSynonymInstances        #-}
-{-# LANGUAGE MultiParamTypeClasses       #-}
-{-# LANGUAGE FunctionalDependencies      #-}
+{-# LANGUAGE FlexibleInstances                 #-}
+{-# LANGUAGE TypeSynonymInstances              #-}
+{-# LANGUAGE MultiParamTypeClasses             #-}
+{-# LANGUAGE FunctionalDependencies            #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind -Wall #-}
 
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
@@ -57,52 +57,82 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
   -- Process one command and loop
   case command of
 
-    Nothing   -> reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    Just Pause -> reactimateControl bridge prefs commandQ' init sense actuate sf
-    Just Exit -> return ()
+    Nothing                  -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just Pause               -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just Exit                -> return ()
 
     -- Jump one step back in the simulation
-    Just SkipBack -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just SkipBack            -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- Re-execute the last step
-    Just Redo -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just Redo                -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Print summary information about the history
-    Just SummarizeHistory -> do
-      (ebPrint bridge) ("CurrentHistory 0")
-      reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just SummarizeHistory    -> do (ebPrint bridge) ("CurrentHistory 0")
+                                   reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Skip cycle while sensing the input
-    Just SkipSense -> do
-      a0 <- init
-      when (dumpInput prefs) $ print a0
+    Just SkipSense           -> do a0 <- init
+                                   when (dumpInput prefs) $ print a0
 
-      let myInit = do (_,ma') <- sense False
-                      return $ fromMaybe a0 ma'
+                                   let myInit = do (_,ma') <- sense False
+                                                   return $ fromMaybe a0 ma'
 
-      ebSendEvent bridge "CurrentFrameChanged"
+                                   ebSendEvent bridge "CurrentFrameChanged"
 
-      reactimateControl bridge prefs commandQ' myInit sense actuate sf
+                                   reactimateControl bridge prefs commandQ' myInit sense actuate sf
 
     -- TODO: Jump to a specific frame
-    Just (JumpTo n) -> do
-      ebSendEvent bridge "CurrentFrameChanged"
-      reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just (JumpTo n)          -> do ebSendEvent bridge "CurrentFrameChanged"
+                                   reactimateControl bridge prefs commandQ' init sense actuate sf
 
-    -- TODO: Step one simulation frame
-    Just Step -> do
-      a0 <- init
-      when (dumpInput prefs) $ print a0
+    -- Simulate indefinitely
+    Just Play                 -> do (a0, sf', _) <- step0
+                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else appendCommand commandQ' Play
+                                    reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
 
-      let tf0      = sfTF sf
-          (sf',b0) = tf0 a0
-      _ <- actuate True b0
-      ebSendEvent bridge "CurrentFrameChanged"
+    -- Simulate one step forward
+    Just Step                -> do (a0, sf', _) <- step0
+                                   reactimateControl' bridge prefs ((a0, sf), []) commandQ' init sense actuate sf' a0
 
-      reactimateControl' bridge prefs ((a0, sf), []) commandQ' init sense actuate sf' a0
+    -- Simulate until a predicate on the input and output holds
+    Just (StepUntil p)       -> do (a0, sf', b0) <- step0
+                                   cond          <- checkCond p Nothing a0 b0
+                                   let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
 
-    Just (StepUntil p) -> do
+                                   -- Continue
+                                   -- TODO Potential bug here: it could simulate too much!
+                                   reactimateControl' bridge prefs ((a0, sf), []) commandQ'' init sense actuate sf' a0
+
+    -- Skip steps until a predicate on the input and output holds
+    Just (SkipUntil p)       -> do (a0, sf', b0) <- skip0
+
+                                   cond <- checkCond p Nothing a0 b0
+                                   let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
+
+                                   -- TODO Potential bug here: it could simulate too much!
+                                   reactimateControl' bridge prefs ((a0, sf), []) commandQ'' init sense actuate sf' a0
+
+    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
+                                    reactimateControl bridge prefs' commandQ' init sense actuate sf
+
+    Just GetPrefDumpInput     -> do print (dumpInput prefs)
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    Just Ping                 -> do ebSendMsg bridge "Pong"
+                                    ebSendEvent bridge   "PingSent"
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
+
+    Just GetCurrentTime       -> do ebSendMsg bridge ("CurrentTime " ++ show 0)
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    Just GetCurrentFrame      -> do ebSendMsg bridge ("CurrentFrame " ++ show 0)
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+  where
+    -- step0 :: IO (a, SF' a b, b)
+    step0 = do
+      -- Step
       a0 <- init
       when (dumpInput prefs) $ print a0
 
@@ -110,69 +140,27 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
           (sf',b0) = tf0 a0
       _ <- actuate True b0
       ebSendEvent bridge "CurrentFrameChanged"
+      return (a0, sf', b0)
 
-      let cond = evalPred p Nothing a0 b0
+    -- skip0 :: IO (a, SF' a b, b)
+    skip0 = do
+      a0 <- init
+      when (dumpInput prefs) $ print a0
+
+      let tf0  = sfTF sf
+          (sf',b0) = tf0 a0
+      ebSendEvent bridge "CurrentFrameChanged"
+      return (a0, sf', b0)
+
+    -- checkCond :: (Show a, Show b, Pred p a b)
+    --           => p -> Maybe DTime -> a -> b -> IO Bool
+    checkCond p dt a0 b0 = do
+      -- Check condition
+      let cond = evalPred p dt a0 b0
       when cond $ do
         (ebPrint bridge) ("Condition became true, with " ++ show a0 ++ " (" ++ show b0 ++ ")")
         ebSendEvent bridge "ConditionMet"
-
-      let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
-
-      -- TODO Potential bug here: it could simulate too much!
-      reactimateControl' bridge prefs ((a0, sf), []) commandQ'' init sense actuate sf' a0
-
-    Just (SkipUntil p) -> do
-      a0 <- init
-      when (dumpInput prefs) $ print a0
-
-      let tf0  = sfTF sf
-          (sf',b0) = tf0 a0
-      ebSendEvent bridge "CurrentFrameChanged"
-
-      let cond = evalPred p Nothing a0 b0
-      when cond $ do
-         _ <- actuate True b0
-         (ebPrint bridge) ("Condition became true, with " ++ show a0 ++ " (" ++ show b0 ++ ")")
-         ebSendEvent bridge "ConditionMet"
-
-      let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
-
-      -- TODO Potential bug here: it could simulate too much!
-      reactimateControl' bridge prefs ((a0, sf), []) commandQ'' init sense actuate sf' a0
-
-    Just (SetPrefDumpInput b) -> do
-      let prefs' = prefs { dumpInput = b }
-      reactimateControl bridge prefs' commandQ' init sense actuate sf
-
-    Just GetPrefDumpInput -> do
-      print (dumpInput prefs)
-      reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    Just Ping -> do
-      ebSendMsg bridge "Pong"
-      ebSendEvent bridge   "PingSent"
-      reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    -- TODO: Step forward
-    Just Play -> do
-      a0 <- init
-      when (dumpInput prefs) $ print a0
-
-      let tf0      = sfTF sf
-          (sf',b0) = tf0 a0
-      _ <- actuate True b0
-      ebSendEvent bridge "CurrentFrameChanged"
-      let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
-
-      reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
-
-    Just GetCurrentTime -> do
-      ebSendMsg bridge ("CurrentTime " ++ show 0)
-      reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    Just GetCurrentFrame -> do
-      ebSendMsg bridge ("CurrentFrame " ++ show 0)
-      reactimateControl bridge prefs commandQ' init sense actuate sf
+      return cond
 
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
@@ -428,6 +416,10 @@ getCommand bridge cmds = do
 -- | Place one command on the top of the queue.
 pushCommand :: [a] -> a -> [a]
 pushCommand cs c = c:cs
+
+-- | Place one command on the top of the queue.
+appendCommand :: [a] -> a -> [a]
+appendCommand cs c = cs ++ [c]
 
 -- * Simulation preferences
 
