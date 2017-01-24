@@ -159,10 +159,12 @@ serveSync port handlerfunc = withSocketsDo $
               do connhdl <- socketToHandle connsock ReadWriteMode
                  putStrLn ("Connected " ++ show clientaddr)
                  hSetBuffering connhdl LineBuffering
+                 hPutStrLn connhdl "Hello 0"
+                 hFlush connhdl
                  let processMessage = do
                        message   <- hGetLine connhdl
                        responses <- handle lock clientaddr message
-                       mapM_ (hPutStrLn connhdl) responses
+                       mapM_ (\msg -> hPutStrLn connhdl msg >> hFlush connhdl) responses
                        processMessage
                  catch processMessage (\(e :: IOException) -> putStrLn "Disconnected")
                  
