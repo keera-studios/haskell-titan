@@ -41,6 +41,7 @@ library
                        network
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall
 
 executable titan-yampa-debugger-example-bouncing-ball
   main-is: BouncingBall.hs
