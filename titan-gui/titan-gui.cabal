@@ -28,7 +28,7 @@ cabal-version:       >=1.10
 
 data-files: data/*.glade
 
-executable yampa-debugging-gui
+executable titan-gui
   main-is:             Main.hs
   ghc-options:         -threaded -Wall
   build-depends:       base >=4.7 && < 4.11,
