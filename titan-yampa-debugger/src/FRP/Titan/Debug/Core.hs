@@ -160,7 +160,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
           (sf',b0) = tf0 a0
       _ <- actuate True b0
       ebSendEvent bridge "CurrentFrameChanged"
-      let commandQ'' = if null commandQ' then [Play] else commandQ'
+      let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
       reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
 
@@ -324,7 +324,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
       let ((a0, sf0), prevs) = previous
 
-      let commandQ'' = if null commandQ' then [Play] else commandQ'
+      let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
       unless last $
         reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
@@ -359,6 +359,30 @@ data Command p = Step                       -- ^ Execute a complete simulation c
                | GetPrefDumpInput           -- ^ Obtain simulation preferences
                | Ping                       -- ^ Debugging: send a pong back to the GUI
  deriving (Eq, Read, Show)
+
+-- True if the command should make the simulator stop playing
+stopPlayingCommand :: Command p -> Bool
+stopPlayingCommand (Step)               = True
+stopPlayingCommand (StepUntil p)        = True
+stopPlayingCommand (SkipUntil p)        = True
+stopPlayingCommand (SkipSense)          = True
+stopPlayingCommand (Redo)               = True
+stopPlayingCommand (SkipBack)           = True
+stopPlayingCommand (JumpTo _)           = True
+stopPlayingCommand (Exit)               = True
+stopPlayingCommand (Play)               = False
+stopPlayingCommand (Pause)              = True
+stopPlayingCommand (Stop)               = True
+stopPlayingCommand (ReloadTrace _)      = True
+stopPlayingCommand (IOSense)            = True
+stopPlayingCommand (GetCurrentFrame)    = False
+stopPlayingCommand (TravelToFrame _)    = True
+stopPlayingCommand (TeleportToFrame _)  = True 
+stopPlayingCommand (SummarizeHistory)   = False
+stopPlayingCommand (SetPrefDumpInput _) = False
+stopPlayingCommand (GetPrefDumpInput)   = False
+stopPlayingCommand (Ping)               = False
+
 
 -- ** Command Queue
 
