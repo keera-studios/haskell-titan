@@ -1,4 +1,8 @@
-module FRP.Titan.Debug.CommTCP where
+-- | Communicate Yampa game and debugging GUI via TCP
+module FRP.Titan.Debug.CommTCP
+    ( mkThemisCommTCPBridge
+    )
+  where
 
 -- External modules
 import Control.Concurrent
@@ -13,6 +17,7 @@ import System.IO
 -- Internal modules
 import FRP.Titan.Debug.Comm
 
+-- | Create a communication bridge using a local TCP server.
 mkThemisCommTCPBridge :: IO ExternalBridge
 mkThemisCommTCPBridge = do
   outChannel   <- newMVar []
@@ -34,6 +39,8 @@ mkThemisCommTCPBridge = do
           (x:xs) -> putMVar getChannel xs >> return x
   return $ ExternalBridge putStrLn sendMsg sendEvent getMsg
 
+-- | Send communication channel that takes messages from an MVar and pushes
+--   them out a socket.
 mkSendMsg :: MVar [String] -> IO ()
 mkSendMsg outChannel = do
   forkIO $ serveLog "8081" (\_ msg -> putInMVar outChannel msg)
@@ -42,6 +49,8 @@ mkSendMsg outChannel = do
     [] -> putMVar outChannel []
     (x:xs) -> do putMVar outChannel xs
 
+-- | Event communication channel that takes event messages from an MVar and
+--   pushes them out a socket.
 mkSendEvent :: MVar [String] -> IO ()
 mkSendEvent channel = do
   forkIO $ serveLog "8082" (\_ msg -> putInMVar channel msg)
@@ -53,7 +62,6 @@ mkSendEvent channel = do
 mkGetChannel :: MVar [String] -> IO ()
 mkGetChannel mvar = do
   undefined
-
 
 type HandlerFunc = SockAddr -> String -> IO ()
 
@@ -118,6 +126,9 @@ plainHandler :: HandlerFunc
 plainHandler addr msg = 
     putStrLn $ "From " ++ show addr ++ ": " ++ msg
 
+-- * Aux
+
+-- | Put a message in an MVar.
 putInMVar :: MVar [String] -> String -> IO ()
 putInMVar mvar s = do
   ss <- takeMVar mvar
