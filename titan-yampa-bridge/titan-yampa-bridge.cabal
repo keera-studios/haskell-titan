@@ -5,8 +5,8 @@ description:
   Yampa debugger that allows you to run an FRP program and control its
   execution.
   .
-  TITAn (Testing Infrastructure for Temporal Abstractions) is a framework to
-  test and debug FRP programs. It allows you to write temporal unit test, check
+  TITAN (Testing Infrastructure for Temporal AbstractioNs) is a framework to
+  test and debug FRP programs. It allows you to write temporal unit tests, check
   them, QuickCheck them, run Yampa programs with a fine-tuned debugger, obtain
   information to replicate tests, and follow and control the execution of a
   Yampa program from an interactive GUI.
