@@ -33,6 +33,13 @@ import FRP.Titan.Debug.Comm
 
 -- * Interactive reactimation
 
+-- Yampa is based on SFs and SF's. The former is an SF that can be turned on by
+-- providing an input signal, the latter is one that is already on, so it also
+-- needs to know the time deltas between samples.
+-- 
+-- The following two functions implement reactimation (Yampa simulation)
+-- based on debug preferences and program configuration.
+
 -- | Start a Yampa program with interactive debugging enabled.
 reactimateControl :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                   => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
@@ -54,12 +61,16 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
     Just Exit -> return ()
 
+    -- Jump one step back in the simulation
     Just SkipBack -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    -- Re-execute the last step
     Just Redo -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    -- TODO: Print summary information about the history
     Just SummarizeHistory -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    -- TODO: Skip cycle while sensing the input
     Just SkipSense -> do
       a0 <- init
       when (dumpInput prefs) $ print a0
@@ -71,10 +82,12 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
       reactimateControl bridge prefs commandQ' myInit sense actuate sf
 
+    -- TODO: Jump to a specific frame
     Just (JumpTo n) -> do
       ebSendEvent bridge "CurrentFrameChanged"
       reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    -- TODO: Step one simulation frame
     Just Step -> do
       a0 <- init
       when (dumpInput prefs) $ print a0
@@ -292,7 +305,7 @@ data Command p = Step                       -- ^ Execute a complete simulation c
                | StepUntil p                -- ^ Execute cycles until a predicate holds
                | SkipUntil p                -- ^ Skip cycles until a predicate holds
                | SkipSense                  -- ^ Skip cycle while sensing the input
-               | Redo                       -- ^ Re-do the last step
+               | Redo                       -- ^ Re-execute the last step
                | SkipBack                   -- ^ Jump one step back in the simulation
                | JumpTo Int                 -- ^ Jump to a specific frame
                | Exit                       -- ^ Stop the simulation and exit the program
