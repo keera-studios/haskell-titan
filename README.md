@@ -38,7 +38,9 @@ It's easier to get started with an example:
 ```
 $ git clone https://github.com/keera-studios/haskell-titan
 $ cd haskel-titan
+$ git clone https://github.com/ivanperez-keera/Yampa
 $ cabal sandbox init
+$ cabal install Yampa/ -fexpose-core
 $ cabal install -fexamples titan-yampa-debugger/
 $ cabal install titan-gui/
 $ ./.cabal-sandbox/bin/titan-gui &
