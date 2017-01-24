@@ -6,7 +6,23 @@
 
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
 -- control and debugging capabilities.
-module FRP.Titan.Debug.Core where
+module FRP.Titan.Debug.Core
+    (
+      -- * Debugging
+      reactimateControl
+    , reactimateControl'
+      -- ** Debugging commands
+    , Command(..)
+      -- *** Debugging command queue
+    , getCommand
+    , pushCommand
+      -- ** Debugging preferences
+    , Preferences(..)
+    , defaultPreferences
+      -- ** Debugging predicates
+    , Pred(..)
+    ) 
+  where
 
 import Control.Monad
 import Data.Maybe
