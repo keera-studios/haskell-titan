@@ -4,7 +4,18 @@
 name:                titan-yampa-gui
 version:             0.0.1.0
 synopsis:            A GUI to debug Yampa programs.
--- description:
+description:
+  Yampa debugging GUI that allows you to control the execution of a running FRP
+  program.
+  .
+  TITAN (Testing Infrastructure for Temporal AbstractioNs) is a framework to
+  test and debug FRP programs. It allows you to write temporal unit tests, check
+  them, QuickCheck them, run Yampa programs with a fine-tuned debugger, obtain
+  information to replicate tests, and follow and control the execution of a
+  Yampa program from an interactive GUI.
+  .
+  This program provides a GUI to connect to a running Yampa game and control
+  its execution.
 license:             AllRightsReserved
 license-file:        LICENSE
 author:              Ivan Perez
@@ -20,8 +31,6 @@ data-files: data/*.glade
 executable yampa-debugging-gui
   main-is:             Main.hs
   ghc-options:         -threaded -Wall
-  -- other-modules:
-  -- other-extensions:
   build-depends:       base >=4.7 && < 4.11,
                        keera-hails-reactivevalues,
                        keera-hails-mvc-controller,
