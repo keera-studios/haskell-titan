@@ -10,7 +10,6 @@ module FRP.Titan.Debug.Core
     (
       -- * Debugging
       reactimateControl
-    , reactimateControl'
       -- ** Debugging commands
     , Command(..)
       -- *** Debugging command queue
@@ -332,9 +331,14 @@ pushCommand :: [a] -> a -> [a]
 pushCommand cs c = c:cs
 
 -- * Simulation preferences
-data Preferences = Preferences
-  { dumpInput :: Bool }
 
+-- | Debugging preferences.
+data Preferences = Preferences
+  { dumpInput :: Bool -- ^ Dump inputs to local log at every cycle (on simulation machine)
+  }
+
+-- | Default simulation preferences that do not dump the input to the log
+--   every cycle.
 defaultPreferences :: Preferences
 defaultPreferences = Preferences
   { dumpInput = False }
