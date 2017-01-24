@@ -59,6 +59,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
     Nothing   -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    Just Pause -> reactimateControl bridge prefs commandQ' init sense actuate sf
     Just Exit -> return ()
 
     -- Jump one step back in the simulation
@@ -298,6 +299,8 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
       ebSendEvent bridge   "PingSent"
       reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    Just Pause ->
+      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 -- * Commands
 
 -- | An interactive, debugging command.
