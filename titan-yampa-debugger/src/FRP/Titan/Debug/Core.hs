@@ -175,7 +175,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
                    -> Preferences                               -- ^ Debug: Debugging preferences
-                   -> ((a, SF a b), [(a, DTime, SF' a b)])      -- ^ Execution History: list of inputs and SF continuations
+                   -> History a b                               -- ^ Execution History: list of inputs and SF continuations
                    -> [Command p]                               -- ^ Debug: List of initial commands execute
                    -> IO a                                      -- ^ FRP:   Initial sensing action 
                    -> (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
@@ -183,23 +183,23 @@ reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a 
                    -> SF' a b                                   -- ^ FRP:   Signal Function that defines the program
                    -> a                                         -- ^ Debug: Last known input
                    -> IO ()
-reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInput = do
+reactimateControl' bridge prefs history commandQ init sense actuate sf lastInput = do
   (command,commandQ') <- getCommand bridge commandQ
 
   case command of
 
-    Nothing   -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Nothing   -> reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
     Just Exit -> return ()
 
     -- TODO: Print summary information about the history
-    Just SummarizeHistory     -> do let ((a0, sf0), ps) = previous
+    Just SummarizeHistory     -> do let ((a0, sf0), ps) = history
                                         num             = length ps
                                     ebPrint bridge ("CurrentHistory " ++ show num)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
     -- Jump to a specific frame
-    Just (JumpTo n)           -> do let ((a0, sf0), ps) = previous
+    Just (JumpTo n)           -> do let ((a0, sf0), ps) = history
                                     when (length ps + 1 > n) $ do
                                         ebSendEvent bridge   "CurrentFrameChanged"
                                         case n of
@@ -209,7 +209,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                                in reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
 
     -- Discard all future after a specific frame
-    Just (DiscardFuture n)    -> do let ((a0, sf0), ps) = previous
+    Just (DiscardFuture n)    -> do let ((a0, sf0), ps) = history
                                     when (length ps + 1 > n) $ do
                                         ebSendEvent bridge   "CurrentFrameChanged"
                                         case n of
@@ -220,7 +220,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
-                                    case previous of
+                                    case history of
                                       ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl' bridge prefs ((a0, sf0), prevs) commandQ'' init sense actuate sf' lastInput
@@ -236,8 +236,8 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                         reactimateControl bridge prefs commandQ' init sense actuate sf0
 
     -- Re-execute the last step
-    Just Redo                 -> -- reactimateControl' bridge prefs previous commandQ' sense actuate sf lastInput
-                                 case previous of
+    Just Redo                 -> -- reactimateControl' bridge prefs history commandQ' sense actuate sf lastInput
+                                 case history of
                                    ((a0, sf0), (an, dt, sfn):prevs) -> do
                                      let (sf',b') = (sfTF' sfn) dt an
                                      when (dumpInput prefs) $ print an
@@ -245,7 +245,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                      last <- actuate True b'
 
                                      unless last $
-                                       reactimateControl' bridge prefs previous commandQ' init sense actuate sf' an
+                                       reactimateControl' bridge prefs history commandQ' init sense actuate sf' an
 
                                    ((a0, sf0), []) -> do
                                       let tf0      = sfTF sf0
@@ -260,12 +260,12 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     when (dumpInput prefs) $ print a
                                     ebSendEvent bridge   "CurrentFrameChanged"
 
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
     -- Simulate one step forward
     Just Step                 -> do (a', dt, sf', b', last) <- step1
 
-                                    let ((a0, sf0), prevs) = previous
+                                    let ((a0, sf0), prevs) = history
 
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ' init sense actuate sf' a'
@@ -276,7 +276,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     cond <- checkCond p (Just dt) a' b'
 
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
-                                    let ((a0, sf0), prevs) = previous
+                                    let ((a0, sf0), prevs) = history
 
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
@@ -290,7 +290,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
                                     last <- if cond then actuate True b' else return False
-                                    let ((a0, sf0), prevs) = previous
+                                    let ((a0, sf0), prevs) = history
 
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
@@ -298,92 +298,60 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     -- Simulate indefinitely
     Just Play                 -> do (a', dt, sf', b', last) <- step1
 
-                                    let ((a0, sf0), prevs) = previous
+                                    let ((a0, sf0), prevs) = history
 
                                     let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
-    Just Pause                -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just Pause                -> reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
-    Just (IOSense f)          -> do let ((a0, sf0), ps) = previous
-                                        as              = a0 : map (\(a,_,_) -> a) ps
-                                    (dt, ma') <- sense False
+    Just (IOSense f)          -> do (dt, ma') <- sense False
                                     let a'       = fromMaybe lastInput ma'
                                     when (dumpInput prefs) $ print a'
-                                                                               
-                                    previous'' <- if length as >= f
-                                                    then return previous
-                                                    else let previous' = if f == 0
-                                                                           then ((a', sf0), ps)
-                                                                           else ((a0, sf0), appAt (f-1) (\(_,_,sf) -> (a', dt, sf)) ps)
-                                                         in return previous'
-                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
+                                    let history'' = historyReplaceInputDTimeAt history f dt a'
+                                    reactimateControl' bridge prefs history'' commandQ' init sense actuate sf lastInput
 
-    Just (GetInput f)         -> do let ((a0, sf0), ps) = previous
-                                        as = a0 : map (\(a,_,_) -> a) ps
-                                        e  = if length as >= f then Nothing else Just (as !! f)
+    Just (GetInput f)         -> do let e = historyGetInput history f
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
-    Just (SetInput f i)       -> do let ((a0, sf0), ps) = previous
-                                        as              = a0 : map (\(a,_,_) -> a) ps
-                                        e               = maybeRead i
-                                    previous'' <- case e of
-                                                    Nothing -> return previous
-                                                    Just a  -> if length as >= f
-                                                                 then return previous
-                                                                 else let previous' = if f == 0
-                                                                                        then ((a, sf0), ps)
-                                                                                        else ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps)
-                                                                      in return previous'
-                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
+    Just (SetInput f i)       -> do history'' <- case maybeRead i of
+                                                    Nothing -> return history
+                                                    Just a  -> return (historyReplaceInputAt history f a)
+                                    reactimateControl' bridge prefs history'' commandQ' init sense actuate sf lastInput
 
-    Just (GetGTime f)         -> do let ((a0, sf0), ps) = previous
-                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
-                                        e               = if length dts >= f then Nothing else Just (sum (take f dts))
+    Just (GetGTime f)         -> do let e = historyGetGTime history f 
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
-    Just (GetDTime f)         -> do let ((a0, sf0), ps) = previous
-                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
-                                        e               = if length dts >= f then Nothing else Just (dts !! f)
+    Just (GetDTime f)         -> do let e = historyGetDTime history f
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
-    Just (SetDTime f i)       -> do let ((a0, sf0), ps) = previous
-                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
-                                        e               = maybeRead i
-                                    previous'' <- case e of
-                                                    Nothing -> return previous
-                                                    Just dt -> if length dts >= f
-                                                                 then return previous
-                                                                 else let previous' = if f == 0
-                                                                                        then ((a0, sf0), ps)
-                                                                                        else ((a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps)
-                                                                      in return previous'
-                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
+    Just (SetDTime f dtS)     -> do history'' <- case maybeRead dtS of
+                                                    Nothing -> return history
+                                                    Just dt -> return (historyReplaceDTimeAt history f dt)
+                                    reactimateControl' bridge prefs history'' commandQ' init sense actuate sf lastInput
 
-    Just GetCurrentTime       -> do let ((a0, sf0), ps) = previous
-                                        num             = sum $ map (\(_,dt,_) -> dt) ps
+    Just GetCurrentTime       -> do let num = historyGetCurrentTime history
                                     ebSendMsg bridge ("CurrentTime " ++ show num)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
-    Just GetCurrentFrame      -> do let ((a0, sf0), ps) = previous
-                                        num             = length ps
+    Just GetCurrentFrame      -> do let num = historyGetCurrentFrame history
                                     ebSendMsg bridge ("CurrentFrame " ++ show num)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
     Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl' bridge prefs' previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs' history commandQ' init sense actuate sf lastInput
 
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
 
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs history commandQ' init sense actuate sf lastInput
     
     other                     -> putStrLn $ show other
   where
@@ -430,7 +398,8 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | Play                       -- ^ Control: Start executing normally
                | Pause                      -- ^ Control: Pause the simulation
                | Stop                       -- ^ Control: Stop the simulation
-               | ReloadTrace      String    -- ^ Control: Reload the Trace from a file (not implemented yet)
+               | LoadTraceFromFile String   -- ^ Control: Load the Trace from a file (not implemented yet)
+               | LoadTraceFromString String -- ^ Control: Load the Trace from a string (not implemented yet)
                | IOSense Int                -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
                | SetInput Int String        -- ^ Info: Change input at a particular frame
@@ -447,32 +416,33 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
 
 -- True if the command should make the simulator stop playing
 stopPlayingCommand :: Command p -> Bool
-stopPlayingCommand (Step)               = True
-stopPlayingCommand (StepUntil p)        = True
-stopPlayingCommand (SkipUntil p)        = True
-stopPlayingCommand (SkipSense)          = True
-stopPlayingCommand (Redo)               = True
-stopPlayingCommand (SkipBack)           = True
-stopPlayingCommand (JumpTo _)           = True
-stopPlayingCommand (TravelToFrame _)    = True
-stopPlayingCommand (DiscardFuture _)    = True
-stopPlayingCommand (Exit)               = True
-stopPlayingCommand (Play)               = False
-stopPlayingCommand (Pause)              = True
-stopPlayingCommand (Stop)               = True
-stopPlayingCommand (ReloadTrace _)      = True
-stopPlayingCommand (IOSense _)          = True
-stopPlayingCommand (GetInput _ )        = False
-stopPlayingCommand (SetInput _ _)       = False
-stopPlayingCommand (GetGTime _ )        = False
-stopPlayingCommand (GetDTime _ )        = False
-stopPlayingCommand (SetDTime _ _)       = False
-stopPlayingCommand (GetCurrentFrame)    = False
-stopPlayingCommand (GetCurrentTime)     = False
-stopPlayingCommand (SummarizeHistory)   = False
-stopPlayingCommand (SetPrefDumpInput _) = False
-stopPlayingCommand (GetPrefDumpInput)   = False
-stopPlayingCommand (Ping)               = False
+stopPlayingCommand (Step)                  = True
+stopPlayingCommand (StepUntil p)           = True
+stopPlayingCommand (SkipUntil p)           = True
+stopPlayingCommand (SkipSense)             = True
+stopPlayingCommand (Redo)                  = True
+stopPlayingCommand (SkipBack)              = True
+stopPlayingCommand (JumpTo _)              = True
+stopPlayingCommand (TravelToFrame _)       = True
+stopPlayingCommand (DiscardFuture _)       = True
+stopPlayingCommand (Exit)                  = True
+stopPlayingCommand (Play)                  = False
+stopPlayingCommand (Pause)                 = True
+stopPlayingCommand (Stop)                  = True
+stopPlayingCommand (LoadTraceFromFile _)   = True
+stopPlayingCommand (LoadTraceFromString _) = True
+stopPlayingCommand (IOSense _)             = True
+stopPlayingCommand (GetInput _ )           = False
+stopPlayingCommand (SetInput _ _)          = False
+stopPlayingCommand (GetGTime _ )           = False
+stopPlayingCommand (GetDTime _ )           = False
+stopPlayingCommand (SetDTime _ _)          = False
+stopPlayingCommand (GetCurrentFrame)       = False
+stopPlayingCommand (GetCurrentTime)        = False
+stopPlayingCommand (SummarizeHistory)      = False
+stopPlayingCommand (SetPrefDumpInput _)    = False
+stopPlayingCommand (GetPrefDumpInput)      = False
+stopPlayingCommand (Ping)                  = False
 
 
 -- ** Command Queue
@@ -498,6 +468,67 @@ pushCommand cs c = c:cs
 -- | Place one command on the top of the queue.
 appendCommand :: [a] -> a -> [a]
 appendCommand cs c = cs ++ [c]
+
+-- * Execution History
+type History a b = ((a, SF a b), [(a, DTime, SF' a b)]) 
+
+historyReplaceInputAt history f a = 
+  let ((a0, sf0), ps) = history
+      as              = a0 : map (\(a,_,_) -> a) ps
+  in if length as >= f
+       then history
+       else let history' = if f == 0
+                then ((a, sf0), ps)
+                else ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps)
+            in history'
+
+historyReplaceDTimeAt history f dt = 
+  let ((a0, sf0), ps) = history
+      dts             = 0 : map (\(_,dt,_) -> dt) ps
+  in if length dts >= f
+       then history
+       else let history' = if f == 0
+                then ((a0, sf0), ps)
+                else ((a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps)
+            in history'
+
+historyReplaceInputDTimeAt history f dt a = 
+  let ((a0, sf0), ps) = history
+      as              = a0 : map (\(a,_,_) -> a) ps
+  in if length as >= f
+       then history
+       else let history' = if f == 0
+                then ((a, sf0), ps)
+                else ((a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps)
+            in history'
+
+historyGetGTime history f = 
+  let ((a0, sf0), ps) = history
+      dts             = 0 : map (\(_,dt,_) -> dt) ps
+      e               = if length dts >= f then Nothing else Just (sum (take f dts))
+  in e
+
+historyGetDTime history f = 
+  let ((a0, sf0), ps) = history
+      dts             = 0 : map (\(_,dt,_) -> dt) ps
+      e               = if length dts >= f then Nothing else Just (dts !! f)
+  in e
+
+historyGetInput history f = 
+  let ((a0, sf0), ps) = history
+      as = a0 : map (\(a,_,_) -> a) ps
+      e  = if length as >= f then Nothing else Just (as !! f)
+  in e
+
+historyGetCurrentTime history = 
+  let ((a0, sf0), ps) = history
+      num             = sum $ map (\(_,dt,_) -> dt) ps
+  in num
+
+historyGetCurrentFrame history = 
+  let ((a0, sf0), ps) = history
+      num             = length ps
+  in num
 
 -- * Simulation preferences
 
