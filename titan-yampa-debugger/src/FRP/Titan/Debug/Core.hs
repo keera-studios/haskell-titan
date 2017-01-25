@@ -405,7 +405,7 @@ getCommand bridge cmds = do
     (ebPrint bridge) (show mLines)
     (ebPrint bridge) (show cmLines)
   case cmds ++ cLines of
-    [] -> return (Nothing, [])
+    []     -> return (Nothing, [])
     (c:cs) -> return (Just c, cs)
 
 -- | Place one command on the top of the queue.
