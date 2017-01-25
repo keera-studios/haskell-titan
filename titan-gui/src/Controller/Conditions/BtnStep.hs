@@ -100,15 +100,20 @@ conditionVMLoadTrace cenv = do
 
   widgetShow fch
   response <- dialogRun fch
-  case response of
-       ResponseCancel -> putStrLn "You cancelled..."
-       ResponseAccept -> do nwf <- fileChooserGetFilename fch
-                            case nwf of
-                                 Nothing -> putStrLn "Nothing"
-                                 Just path -> putStrLn ("New file path is:\n" ++ path)
-       ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
+  fp <- case response of
+          ResponseCancel -> putStrLn "You cancelled..." >> return Nothing
+          ResponseAccept -> do nwf <- fileChooserGetFilename fch
+                               case nwf of
+                                    Nothing -> putStrLn "Nothing" >> return Nothing
+                                    Just path -> putStrLn ("New file path is:\n" ++ path) >> return (Just path)
+          ResponseDeleteEvent -> putStrLn "You closed the dialog window..." >> return Nothing
 
   widgetDestroy fch
+  case fp of
+    Nothing -> return ()
+    (Just p) -> do
+      contents <- readFile p
+      sendToYampaSocketAsync (extra cenv) ("LoadTrace " ++ contents)
 
 -- gtkBuilderAccessor "toolBtnRefineTrace"        "Button"
 installConditionRefineTrace cenv = void $ do
@@ -271,7 +276,7 @@ conditionVMConnect cenv =
 
 -- | Make this reactive
 conditionVMFrameChanged cenv = do
-  entry <- txtGlobalTime (uiBuilder (view cenv))
+  entryGT <- txtGlobalTime (uiBuilder (view cenv))
   n <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
   putStrLn $ "Received " ++ show n
   case maybe [] words n of
