@@ -28,6 +28,7 @@ import Control.Monad
 import Data.Maybe
 import FRP.Yampa        as Yampa
 import FRP.Yampa.InternalCore (SF(..), SF'(..), sfTF', DTime)
+import Text.Read
 
 import FRP.Titan.Debug.Comm
 
@@ -133,6 +134,8 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
 
     Just GetCurrentFrame      -> do ebSendMsg bridge ("CurrentFrame " ++ show 0)
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just c                    -> do ebSendEvent bridge ("Got " ++ show c ++ ", dunno what to do with it")
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
   where
     -- step0 :: IO (a, SF' a b, b)
@@ -293,6 +296,22 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     ebSendMsg bridge (show e)
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    Just (SetInput f i)       -> do let ((a0, sf0), ps) = previous
+                                        as              = a0 : map (\(a,_,_) -> a) ps
+                                        e               = readMaybe i
+                                    previous'' <- case e of
+                                                    Nothing -> return previous
+                                                    Just a  -> if length as >= f
+                                                                 then return previous
+                                                                 else let previous' = if f == 0 then ((a, sf0), ps)
+                                                                                                else ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps)
+                                                                          appAt :: Int -> (a -> a) -> [a] -> [a]
+                                                                          appAt _ f [] = []
+                                                                          appAt 0 f (x:xs) = f x : xs
+                                                                          appAt n f (x:xs) = x : appAt (n-1) f xs
+                                                                      in return previous'
+                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
+
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
@@ -367,6 +386,7 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | ReloadTrace      String    -- ^ Control: Reload the Trace from a file (not implemented yet)
                | IOSense                    -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
+               | SetInput Int String        -- ^ Info: Change input at a particular frame
                | GetCurrentFrame            -- ^ Info: Obtain the current frame
                | GetCurrentTime             -- ^ Info: Obtain the current time
                | SummarizeHistory           -- ^ Info: Print summary information about the history
