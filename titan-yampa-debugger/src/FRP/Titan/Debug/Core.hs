@@ -58,7 +58,6 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
   case command of
 
     Nothing                  -> reactimateControl bridge prefs commandQ' init sense actuate sf
-    Just Pause               -> reactimateControl bridge prefs commandQ' init sense actuate sf
     Just Exit                -> return ()
 
     -- Jump one step back in the simulation
@@ -66,10 +65,6 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
     -- Re-execute the last step
     Just Redo                -> reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    -- TODO: Print summary information about the history
-    Just SummarizeHistory    -> do ebPrint bridge ("CurrentHistory 0")
-                                   reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Skip cycle while sensing the input
     Just SkipSense           -> do a0 <- init
@@ -93,6 +88,8 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
                                                        else appendCommand commandQ' Play
                                     reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
 
+    Just Pause               -> reactimateControl bridge prefs commandQ' init sense actuate sf
+
     -- Simulate one step forward
     Just Step                -> do (a0, sf', _) <- step0
                                    reactimateControl' bridge prefs ((a0, sf), []) commandQ' init sense actuate sf' a0
@@ -115,17 +112,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
                                    -- TODO Potential bug here: it could simulate too much!
                                    reactimateControl' bridge prefs ((a0, sf), []) commandQ'' init sense actuate sf' a0
 
-    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl bridge prefs' commandQ' init sense actuate sf
-
-    Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
-
     Just (GetInput _)         -> do ebSendMsg bridge ("Nothing")
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
-
-    Just Ping                 -> do ebSendMsg bridge "Pong"
-                                    ebSendEvent bridge   "PingSent"
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
 
 
@@ -134,6 +121,21 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
     Just GetCurrentFrame      -> do ebSendMsg bridge ("CurrentFrame " ++ show 0)
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    -- TODO: Print summary information about the history
+    Just SummarizeHistory    -> do ebPrint bridge ("CurrentHistory 0")
+                                   reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
+                                    reactimateControl bridge prefs' commandQ' init sense actuate sf
+
+    Just GetPrefDumpInput     -> do print (dumpInput prefs)
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
+    Just Ping                 -> do ebSendMsg bridge "Pong"
+                                    ebSendEvent bridge   "PingSent"
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
     Just c                    -> do ebSendEvent bridge ("Got " ++ show c ++ ", dunno what to do with it")
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
   where
@@ -283,11 +285,17 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
-    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl' bridge prefs' previous commandQ' init sense actuate sf lastInput
+    -- Simulate indefinitely
+    Just Play                 -> do (a', dt, sf', b', last) <- step1
 
-    Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    let ((a0, sf0), prevs) = previous
+
+                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
+
+                                    unless last $
+                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
+
+    Just Pause                -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
     Just (GetInput f)         -> do let ((a0, sf0), ps) = previous
                                         as = a0 : map (\(a,_,_) -> a) ps
@@ -327,22 +335,6 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                                                       in return previous'
                                     reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
 
-    Just Ping                 -> do ebSendMsg bridge "Pong"
-                                    ebSendEvent bridge   "PingSent"
-                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
-
-    -- Simulate indefinitely
-    Just Play                 -> do (a', dt, sf', b', last) <- step1
-
-                                    let ((a0, sf0), prevs) = previous
-
-                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
-
-                                    unless last $
-                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
-
-    Just Pause                -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
-
     Just GetCurrentTime       -> do let ((a0, sf0), ps) = previous
                                         num             = sum $ map (\(_,dt,_) -> dt) ps
                                     ebSendMsg bridge ("CurrentTime " ++ show num)
@@ -351,6 +343,16 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     Just GetCurrentFrame      -> do let ((a0, sf0), ps) = previous
                                         num             = length ps
                                     ebSendMsg bridge ("CurrentFrame " ++ show num)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
+                                    reactimateControl' bridge prefs' previous commandQ' init sense actuate sf lastInput
+
+    Just GetPrefDumpInput     -> do print (dumpInput prefs)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just Ping                 -> do ebSendMsg bridge "Pong"
+                                    ebSendEvent bridge   "PingSent"
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
     
     other                     -> putStrLn $ show other
