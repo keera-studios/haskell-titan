@@ -183,11 +183,13 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
     Just Exit -> return ()
 
+    -- TODO: Print summary information about the history
     Just SummarizeHistory     -> do let ((a0, sf0), ps) = previous
                                         num             = length ps
                                     (ebPrint bridge) ("CurrentHistory " ++ show num)
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    -- TODO: Jump to a specific frame
     Just (JumpTo n)           -> do let ((a0, sf0), ps) = previous
                                     when (length ps + 1 > n) $ do
                                         ebSendEvent bridge   "CurrentFrameChanged"
@@ -197,6 +199,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                                    ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = ps'
                                                in reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
 
+    -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case previous of
                                       ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) ->
@@ -211,6 +214,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                       ((a0, sf0), []) ->
                                         reactimateControl bridge prefs commandQ' init sense actuate sf0
 
+    -- Re-execute the last step
     Just Redo                 -> -- reactimateControl' bridge prefs previous commandQ' sense actuate sf lastInput
                                  case previous of
                                    ((a0, sf0), (an, dt, sfn):prevs) -> do
@@ -229,6 +233,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
                                       reactimateControl' bridge prefs ((a0, sf0), []) commandQ' init sense actuate sf' a0
 
+    -- TODO: Skip cycle while sensing the input
     -- Should the input be used as new last input?
     Just SkipSense            -> do (_,a)  <- sense False
                                     when (dumpInput prefs) $ print a
@@ -236,6 +241,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    -- Simulate one step forward
     Just Step                 -> do (a', dt, sf', b', last) <- step1
 
                                     let ((a0, sf0), prevs) = previous
@@ -243,7 +249,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ' init sense actuate sf' a'
 
-
+    -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a', dt, sf', b', last) <- step1
 
                                     cond <- checkCond p (Just dt) a' b'
@@ -254,6 +260,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     unless last $
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
+    -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1
 
                                     cond <- checkCond p (Just dt) a' b'
@@ -277,6 +284,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     ebSendEvent bridge   "PingSent"
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    -- Simulate indefinitely
     Just Play                 -> do (a', dt, sf', b', last) <- step1
 
                                     let ((a0, sf0), prevs) = previous
