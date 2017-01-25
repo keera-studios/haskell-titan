@@ -119,10 +119,15 @@ conditionVMRefineTrace cenv = return ()
 
 -- gtkBuilderAccessor "toolBtnDiscardFuture"      "Button"
 installConditionDiscardFuture cenv = void $ do
+  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+
   btn <- toolButtonActivateField <$> toolBtnDiscardFuture (uiBuilder (view cenv))
-  btn =:> conditionVMDiscardFuture cenv
-conditionVMDiscardFuture :: CEnv -> IO ()
-conditionVMDiscardFuture cenv = return ()
+  (btn `governingR` curFrameField') =:> conditionVMDiscardFuture cenv
+
+conditionVMDiscardFuture :: CEnv -> Maybe Int -> IO ()
+conditionVMDiscardFuture cenv Nothing = return ()
+conditionVMDiscardFuture cenv (Just i) = do
+  sendToYampaSocketAsync (extra cenv) ("DiscardFuture " ++ show i)
 
 -- gtkBuilderAccessor "toolBtnSaveTraceUpToFrame" "Button"
 installConditionSaveTraceUpToFrame cenv = void $ do
