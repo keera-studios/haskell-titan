@@ -198,8 +198,18 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                     ebPrint bridge ("CurrentHistory " ++ show num)
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-    -- TODO: Jump to a specific frame
+    -- Jump to a specific frame
     Just (JumpTo n)           -> do let ((a0, sf0), ps) = previous
+                                    when (length ps + 1 > n) $ do
+                                        ebSendEvent bridge   "CurrentFrameChanged"
+                                        case n of
+                                          0 -> reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                          _ -> let ps' = reverse $ take n $ reverse ps
+                                                   ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = ps'
+                                               in reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
+
+    -- Discard all future after a specific frame
+    Just (DiscardFuture n)    -> do let ((a0, sf0), ps) = previous
                                     when (length ps + 1 > n) $ do
                                         ebSendEvent bridge   "CurrentFrameChanged"
                                         case n of
@@ -296,6 +306,20 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                       reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
     Just Pause                -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just (IOSense f)          -> do let ((a0, sf0), ps) = previous
+                                        as              = a0 : map (\(a,_,_) -> a) ps
+                                    (dt, ma') <- sense False
+                                    let a'       = fromMaybe lastInput ma'
+                                    when (dumpInput prefs) $ print a'
+                                                                               
+                                    previous'' <- if length as >= f
+                                                    then return previous
+                                                    else let previous' = if f == 0
+                                                                           then ((a', sf0), ps)
+                                                                           else ((a0, sf0), appAt (f-1) (\(_,_,sf) -> (a', dt, sf)) ps)
+                                                         in return previous'
+                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
 
     Just (GetInput f)         -> do let ((a0, sf0), ps) = previous
                                         as = a0 : map (\(a,_,_) -> a) ps
@@ -400,14 +424,14 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | Redo                       -- ^ Control: Re-execute the last step
                | SkipBack                   -- ^ Control: Jump one step back in the simulation
                | JumpTo Int                 -- ^ Control: Jump to a specific frame
-               | TravelToFrame    Int       -- ^ Control: Simulate up to a particular frame   (not implemented yet)
-               | TeleportToFrame  Int       -- ^ Control: Skip to a particular frame          (not implemented)
+               | TravelToFrame Int          -- ^ Control: Simulate up to a particular frame   (not implemented yet)
+               | DiscardFuture Int          -- ^ Control: Simulate up to a particular frame   (not implemented yet)
                | Exit                       -- ^ Control: Stop the simulation and exit the program
                | Play                       -- ^ Control: Start executing normally
                | Pause                      -- ^ Control: Pause the simulation
                | Stop                       -- ^ Control: Stop the simulation
                | ReloadTrace      String    -- ^ Control: Reload the Trace from a file (not implemented yet)
-               | IOSense                    -- ^ Control: Sense input                  (not implemented yet)
+               | IOSense Int                -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
                | SetInput Int String        -- ^ Info: Change input at a particular frame
                | GetGTime Int               -- ^ Info: Obtain dtime at a particular frame
@@ -431,13 +455,13 @@ stopPlayingCommand (Redo)               = True
 stopPlayingCommand (SkipBack)           = True
 stopPlayingCommand (JumpTo _)           = True
 stopPlayingCommand (TravelToFrame _)    = True
-stopPlayingCommand (TeleportToFrame _)  = True 
+stopPlayingCommand (DiscardFuture _)    = True
 stopPlayingCommand (Exit)               = True
 stopPlayingCommand (Play)               = False
 stopPlayingCommand (Pause)              = True
 stopPlayingCommand (Stop)               = True
 stopPlayingCommand (ReloadTrace _)      = True
-stopPlayingCommand (IOSense)            = True
+stopPlayingCommand (IOSense _)          = True
 stopPlayingCommand (GetInput _ )        = False
 stopPlayingCommand (SetInput _ _)       = False
 stopPlayingCommand (GetGTime _ )        = False
