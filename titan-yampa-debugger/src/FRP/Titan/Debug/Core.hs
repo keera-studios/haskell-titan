@@ -28,7 +28,6 @@ import Control.Monad
 import Data.Maybe
 import FRP.Yampa        as Yampa
 import FRP.Yampa.InternalCore (SF(..), SF'(..), sfTF', DTime)
-import Text.Read
 
 import FRP.Titan.Debug.Comm
 
@@ -298,17 +297,33 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
     Just (SetInput f i)       -> do let ((a0, sf0), ps) = previous
                                         as              = a0 : map (\(a,_,_) -> a) ps
-                                        e               = readMaybe i
+                                        e               = maybeRead i
                                     previous'' <- case e of
                                                     Nothing -> return previous
                                                     Just a  -> if length as >= f
                                                                  then return previous
-                                                                 else let previous' = if f == 0 then ((a, sf0), ps)
-                                                                                                else ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps)
-                                                                          appAt :: Int -> (a -> a) -> [a] -> [a]
-                                                                          appAt _ f [] = []
-                                                                          appAt 0 f (x:xs) = f x : xs
-                                                                          appAt n f (x:xs) = x : appAt (n-1) f xs
+                                                                 else let previous' = if f == 0
+                                                                                        then ((a, sf0), ps)
+                                                                                        else ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps)
+                                                                      in return previous'
+                                    reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
+
+    Just (GetDTime f)         -> do let ((a0, sf0), ps) = previous
+                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
+                                        e               = if length dts >= f then Nothing else Just (dts !! f)
+                                    ebSendMsg bridge (show e)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just (SetDTime f i)       -> do let ((a0, sf0), ps) = previous
+                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
+                                        e               = maybeRead i
+                                    previous'' <- case e of
+                                                    Nothing -> return previous
+                                                    Just dt -> if length dts >= f
+                                                                 then return previous
+                                                                 else let previous' = if f == 0
+                                                                                        then ((a0, sf0), ps)
+                                                                                        else ((a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps)
                                                                       in return previous'
                                     reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
 
@@ -387,6 +402,8 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | IOSense                    -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
                | SetInput Int String        -- ^ Info: Change input at a particular frame
+               | GetDTime Int               -- ^ Info: Obtain dtime at a particular frame
+               | SetDTime Int String        -- ^ Info: Change dtime at a particular frame
                | GetCurrentFrame            -- ^ Info: Obtain the current frame
                | GetCurrentTime             -- ^ Info: Obtain the current time
                | SummarizeHistory           -- ^ Info: Print summary information about the history
@@ -475,3 +492,8 @@ class Read p => Pred p i o | p -> i, p -> o where
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
+
+appAt :: Int -> (a -> a) -> [a] -> [a]
+appAt _ f [] = []
+appAt 0 f (x:xs) = f x : xs
+appAt n f (x:xs) = x : appAt (n-1) f xs
