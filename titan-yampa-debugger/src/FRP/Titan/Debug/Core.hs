@@ -316,6 +316,12 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
                                                                       in return previous'
                                     reactimateControl' bridge prefs previous'' commandQ' init sense actuate sf lastInput
 
+    Just (GetGTime f)         -> do let ((a0, sf0), ps) = previous
+                                        dts             = 0 : map (\(_,dt,_) -> dt) ps
+                                        e               = if length dts >= f then Nothing else Just (sum (take f dts))
+                                    ebSendMsg bridge (show e)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
     Just (GetDTime f)         -> do let ((a0, sf0), ps) = previous
                                         dts             = 0 : map (\(_,dt,_) -> dt) ps
                                         e               = if length dts >= f then Nothing else Just (dts !! f)
@@ -404,6 +410,7 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | IOSense                    -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
                | SetInput Int String        -- ^ Info: Change input at a particular frame
+               | GetGTime Int               -- ^ Info: Obtain dtime at a particular frame
                | GetDTime Int               -- ^ Info: Obtain dtime at a particular frame
                | SetDTime Int String        -- ^ Info: Change dtime at a particular frame
                | GetCurrentFrame            -- ^ Info: Obtain the current frame
@@ -433,6 +440,7 @@ stopPlayingCommand (ReloadTrace _)      = True
 stopPlayingCommand (IOSense)            = True
 stopPlayingCommand (GetInput _ )        = False
 stopPlayingCommand (SetInput _ _)       = False
+stopPlayingCommand (GetGTime _ )        = False
 stopPlayingCommand (GetDTime _ )        = False
 stopPlayingCommand (SetDTime _ _)       = False
 stopPlayingCommand (GetCurrentFrame)    = False
