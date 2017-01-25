@@ -191,12 +191,15 @@ conditionVMTeleportToFrame cenv (Just i) = do
 
 -- gtkBuilderAccessor "toolBtnIOSenseFrame"       "Button"
 installConditionIOSenseFrame cenv = void $ do
+  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+
   btn <- toolButtonActivateField <$> toolBtnIOSenseFrame (uiBuilder (view cenv))
-  btn =:> conditionVMIOSenseFrame cenv
-conditionVMIOSenseFrame :: CEnv -> IO ()
-conditionVMIOSenseFrame cenv = do
-  x <- sendToYampaSocketSync (extra cenv) "Ping"
-  print x
+  (btn `governingR` curFrameField') =:> conditionVMIOSenseFrame cenv
+
+conditionVMIOSenseFrame :: CEnv -> Maybe Int -> IO ()
+conditionVMIOSenseFrame cenv Nothing = return ()
+conditionVMIOSenseFrame cenv (Just i) = do
+  sendToYampaSocketAsync (extra cenv) ("IOSense " ++ show i)
 
 -- gtkBuilderAccessor "toolBtnModifyTime"         "Button"
 installConditionModifyTime cenv = void $ do
