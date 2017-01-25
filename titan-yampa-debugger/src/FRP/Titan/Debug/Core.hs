@@ -88,7 +88,9 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
     -- Simulate indefinitely
     Just Play                 -> do (a0, sf', _) <- step0
-                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else appendCommand commandQ' Play
+                                    let commandQ'' = if any stopPlayingCommand commandQ'
+                                                       then commandQ'
+                                                       else appendCommand commandQ' Play
                                     reactimateControl' bridge prefs ((a0, sf), []) (commandQ'') init sense actuate sf' a0
 
     -- Simulate one step forward
@@ -202,11 +204,13 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case previous of
-                                      ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) ->
-                                        reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
+                                      ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> do
+                                        let commandQ'' = pushCommand commandQ' Redo
+                                        reactimateControl' bridge prefs ((a0, sf0), prevs) commandQ'' init sense actuate sf' lastInput
 
-                                      ((a0, sf0), _:(_a,_dt, sf'):[]) ->
-                                        reactimateControl' bridge prefs ((a0, sf0), []) (Redo:commandQ') init sense actuate sf' a0
+                                      ((a0, sf0), _:(_a,_dt, sf'):[]) -> do
+                                        let commandQ'' = pushCommand commandQ' Redo
+                                        reactimateControl' bridge prefs ((a0, sf0), []) commandQ'' init sense actuate sf' a0
 
                                       ((a0, sf0), _:[]) ->
                                         reactimateControl bridge prefs commandQ' init sense actuate sf0
