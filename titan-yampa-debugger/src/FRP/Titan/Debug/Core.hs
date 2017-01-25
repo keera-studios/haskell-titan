@@ -183,168 +183,166 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
 
     Just Exit -> return ()
 
-    Just SummarizeHistory -> do
-      let ((a0, sf0), ps) = previous
-          num             = length ps
-      (ebPrint bridge) ("CurrentHistory " ++ show num)
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just SummarizeHistory     -> do let ((a0, sf0), ps) = previous
+                                        num             = length ps
+                                    (ebPrint bridge) ("CurrentHistory " ++ show num)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-    Just (JumpTo n) -> do
-      let ((a0, sf0), ps) = previous
-      when (length ps + 1 > n) $ do
-          ebSendEvent bridge   "CurrentFrameChanged"
-          case n of
-            0 -> reactimateControl bridge prefs commandQ' init sense actuate sf0
-            _ -> let ps' = reverse $ take n $ reverse ps
-                     ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = ps'
-                 in reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
+    Just (JumpTo n)           -> do let ((a0, sf0), ps) = previous
+                                    when (length ps + 1 > n) $ do
+                                        ebSendEvent bridge   "CurrentFrameChanged"
+                                        case n of
+                                          0 -> reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                          _ -> let ps' = reverse $ take n $ reverse ps
+                                                   ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = ps'
+                                               in reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
 
-    Just SkipBack -> do
-      ebSendEvent bridge   "CurrentFrameChanged"
-      case previous of
-        ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) ->
-          reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
+    Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
+                                    case previous of
+                                      ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) ->
+                                        reactimateControl' bridge prefs ((a0, sf0), prevs) (Redo:commandQ') init sense actuate sf' lastInput
 
-        ((a0, sf0), _:(_a,_dt, sf'):[]) ->
-          reactimateControl' bridge prefs ((a0, sf0), []) (Redo:commandQ') init sense actuate sf' a0
+                                      ((a0, sf0), _:(_a,_dt, sf'):[]) ->
+                                        reactimateControl' bridge prefs ((a0, sf0), []) (Redo:commandQ') init sense actuate sf' a0
 
-        ((a0, sf0), _:[]) ->
-          reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                      ((a0, sf0), _:[]) ->
+                                        reactimateControl bridge prefs commandQ' init sense actuate sf0
 
-        ((a0, sf0), []) ->
-          reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                      ((a0, sf0), []) ->
+                                        reactimateControl bridge prefs commandQ' init sense actuate sf0
 
-    Just Redo ->
-      -- reactimateControl' bridge prefs previous commandQ' sense actuate sf lastInput
-      case previous of
-        ((a0, sf0), (an, dt, sfn):prevs) -> do
-          let (sf',b') = (sfTF' sfn) dt an
-          when (dumpInput prefs) $ print an
+    Just Redo                 -> -- reactimateControl' bridge prefs previous commandQ' sense actuate sf lastInput
+                                 case previous of
+                                   ((a0, sf0), (an, dt, sfn):prevs) -> do
+                                     let (sf',b') = (sfTF' sfn) dt an
+                                     when (dumpInput prefs) $ print an
 
-          last <- actuate True b'
+                                     last <- actuate True b'
 
-          unless last $
-            reactimateControl' bridge prefs previous commandQ' init sense actuate sf' an
+                                     unless last $
+                                       reactimateControl' bridge prefs previous commandQ' init sense actuate sf' an
 
-        ((a0, sf0), []) -> do
-           let tf0      = sfTF sf0
-               (sf',b0) = tf0 a0
-           _ <- actuate True b0
+                                   ((a0, sf0), []) -> do
+                                      let tf0      = sfTF sf0
+                                          (sf',b0) = tf0 a0
+                                      _ <- actuate True b0
 
-           reactimateControl' bridge prefs ((a0, sf0), []) commandQ' init sense actuate sf' a0
+                                      reactimateControl' bridge prefs ((a0, sf0), []) commandQ' init sense actuate sf' a0
 
     -- Should the input be used as new last input?
-    Just SkipSense -> do
-      (_,a)  <- sense False
-      when (dumpInput prefs) $ print a
-      ebSendEvent bridge   "CurrentFrameChanged"
+    Just SkipSense            -> do (_,a)  <- sense False
+                                    when (dumpInput prefs) $ print a
+                                    ebSendEvent bridge   "CurrentFrameChanged"
 
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-    Just Step -> do
-      (dt, ma') <- sense False
-      let a'       = fromMaybe lastInput ma'
-          (sf',b') = (sfTF' sf) dt a'
-      when (dumpInput prefs) $ print a'
-      (ebPrint bridge) ("Sample was " ++ show (dt, a') ++ " returned (" ++ show b' ++ ")")
+    Just Step                 -> do -- (dt, ma') <- sense False
+                                    -- let a'       = fromMaybe lastInput ma'
+                                    --     (sf',b') = (sfTF' sf) dt a'
+                                    -- when (dumpInput prefs) $ print a'
+                                    -- (ebPrint bridge) ("Sample was " ++ show (dt, a') ++ " returned (" ++ show b' ++ ")")
 
-      last <- actuate True b'
-      ebSendEvent bridge   "CurrentFrameChanged"
+                                    -- last <- actuate True b'
+                                    -- ebSendEvent bridge   "CurrentFrameChanged"
+                                    (a', dt, sf', b', last) <- step1
 
-      let ((a0, sf0), prevs) = previous
+                                    let ((a0, sf0), prevs) = previous
 
-      unless last $
-        reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ' init sense actuate sf' a'
+                                    unless last $
+                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ' init sense actuate sf' a'
 
-    Just (StepUntil p) -> do
-      (dt, ma') <- sense False
-      let a'       = fromMaybe lastInput ma'
-          (sf',b') = (sfTF' sf) dt a'
-      when (dumpInput prefs) $ print a'
 
-      last <- actuate True b'
-      ebSendEvent bridge   "CurrentFrameChanged"
+    Just (StepUntil p)        -> do -- (dt, ma') <- sense False
+                                    -- let a'       = fromMaybe lastInput ma'
+                                    --     (sf',b') = (sfTF' sf) dt a'
+                                    -- when (dumpInput prefs) $ print a'
 
-      let cond = evalPred p (Just dt) a' b'
-      when cond $ do
-        ebSendEvent bridge "ConditionMet"
-        (ebPrint bridge) ("Condition became true, with " ++ show (dt, a') ++ " (" ++ show b' ++ ")")
+                                    -- last <- actuate True b'
+                                    -- ebSendEvent bridge   "CurrentFrameChanged"
+                                    (a', dt, sf', b', last) <- step1
 
-      let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
-      let ((a0, sf0), prevs) = previous
+                                    let cond = evalPred p (Just dt) a' b'
+                                    when cond $ do
+                                      ebSendEvent bridge "ConditionMet"
+                                      (ebPrint bridge) ("Condition became true, with " ++ show (dt, a') ++ " (" ++ show b' ++ ")")
 
-      unless last $
-        reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
+                                    let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
+                                    let ((a0, sf0), prevs) = previous
 
-    Just (SkipUntil p) -> do
-      (dt, ma') <- sense False
-      let a'       = fromMaybe lastInput ma'
-          (sf',b') = (sfTF' sf) dt a'
+                                    unless last $
+                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
-      when (dumpInput prefs) $ print a'
-      ebSendEvent bridge   "CurrentFrameChanged"
+    Just (SkipUntil p)        -> do (dt, ma') <- sense False
+                                    let a'       = fromMaybe lastInput ma'
+                                        (sf',b') = (sfTF' sf) dt a'
 
-      let cond = evalPred p (Just dt) a' b'
-      when cond $ do
-        ebSendEvent bridge "ConditionMet"
-        (ebPrint bridge) ("Condition became true, with " ++ show (dt, a') ++ " (" ++ show b' ++ ")")
-      let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
+                                    when (dumpInput prefs) $ print a'
+                                    ebSendEvent bridge   "CurrentFrameChanged"
 
-      -- TODO Potential bug here: it could simulate too much! If the condition is not
-      -- met, it will not "actuate", and so it will not check whether it should have stopped.
-      last <- if cond then actuate True b' else return False
-      let ((a0, sf0), prevs) = previous
+                                    let cond = evalPred p (Just dt) a' b'
+                                    when cond $ do
+                                      ebSendEvent bridge "ConditionMet"
+                                      (ebPrint bridge) ("Condition became true, with " ++ show (dt, a') ++ " (" ++ show b' ++ ")")
+                                    let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
 
-      unless last $
-        reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
+                                    -- TODO Potential bug here: it could simulate too much! If the condition is not
+                                    -- met, it will not "actuate", and so it will not check whether it should have stopped.
+                                    last <- if cond then actuate True b' else return False
+                                    let ((a0, sf0), prevs) = previous
 
-    Just (SetPrefDumpInput b) -> do
-      let prefs' = prefs { dumpInput = b }
-      reactimateControl' bridge prefs' previous commandQ' init sense actuate sf lastInput
+                                    unless last $
+                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
-    Just GetPrefDumpInput -> do
-      print (dumpInput prefs)
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
+                                    reactimateControl' bridge prefs' previous commandQ' init sense actuate sf lastInput
 
-    Just Ping -> do
-      ebSendMsg bridge "Pong"
-      ebSendEvent bridge   "PingSent"
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just GetPrefDumpInput     -> do print (dumpInput prefs)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-    Just Play -> do
-      (dt, ma') <- sense False
-      let a'       = fromMaybe lastInput ma'
-          (sf',b') = (sfTF' sf) dt a'
-      when (dumpInput prefs) $ print a'
-      (ebPrint bridge) ("Sample was " ++ show (dt, a') ++ " returned (" ++ show b' ++ ")")
+    Just Ping                 -> do ebSendMsg bridge "Pong"
+                                    ebSendEvent bridge   "PingSent"
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-      last <- actuate True b'
-      ebSendEvent bridge   "CurrentFrameChanged"
+    Just Play                 -> do -- (dt, ma') <- sense False
+                                    -- let a'       = fromMaybe lastInput ma'
+                                    --     (sf',b') = (sfTF' sf) dt a'
+                                    -- when (dumpInput prefs) $ print a'
+                                    -- (ebPrint bridge) ("Sample was " ++ show (dt, a') ++ " returned (" ++ show b' ++ ")")
 
-      let ((a0, sf0), prevs) = previous
+                                    -- last <- actuate True b'
+                                    -- ebSendEvent bridge   "CurrentFrameChanged"
+                                    (a', dt, sf', b', last) <- step1
 
-      let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
+                                    let ((a0, sf0), prevs) = previous
 
-      unless last $
-        reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
+                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
-    Just Pause ->
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+                                    unless last $
+                                      reactimateControl' bridge prefs ((a0, sf0), (a', dt, sf'):prevs) commandQ'' init sense actuate sf' a'
 
-    Just GetCurrentTime -> do
-      let ((a0, sf0), ps) = previous
-          num             = sum $ map (\(_,dt,_) -> dt) ps
-      ebSendMsg bridge ("CurrentTime " ++ show num)
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just Pause                -> reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
-    Just GetCurrentFrame -> do
-      let ((a0, sf0), ps) = previous
-          num             = length ps
-      ebSendMsg bridge ("CurrentFrame " ++ show num)
-      reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+    Just GetCurrentTime       -> do let ((a0, sf0), ps) = previous
+                                        num             = sum $ map (\(_,dt,_) -> dt) ps
+                                    ebSendMsg bridge ("CurrentTime " ++ show num)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
+    Just GetCurrentFrame      -> do let ((a0, sf0), ps) = previous
+                                        num             = length ps
+                                    ebSendMsg bridge ("CurrentFrame " ++ show num)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
     
-    o ->
-      putStrLn $ show o
+    other                     -> putStrLn $ show other
+  where
+    step1 = do
+      (dt, ma') <- sense False
+      let a'       = fromMaybe lastInput ma'
+          (sf',b') = (sfTF' sf) dt a'
+      when (dumpInput prefs) $ print a'
+                                                 
+      last <- actuate True b'
+      ebSendEvent bridge   "CurrentFrameChanged"
+      return (a', dt, sf', b', last)
 
 -- * Commands
 
