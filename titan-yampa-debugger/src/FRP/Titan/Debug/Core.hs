@@ -68,7 +68,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
     Just Redo                -> reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Print summary information about the history
-    Just SummarizeHistory    -> do (ebPrint bridge) ("CurrentHistory 0")
+    Just SummarizeHistory    -> do ebPrint bridge ("CurrentHistory 0")
                                    reactimateControl bridge prefs commandQ' init sense actuate sf
 
     -- TODO: Skip cycle while sensing the input
@@ -121,6 +121,9 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
 
+    Just (GetInput _)         -> do ebSendMsg bridge ("Nothing")
+                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
                                     reactimateControl bridge prefs commandQ' init sense actuate sf
@@ -160,7 +163,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
       -- Check condition
       let cond = evalPred p dt a0 b0
       when cond $ do
-        (ebPrint bridge) ("Condition became true, with " ++ show a0 ++ " (" ++ show b0 ++ ")")
+        ebPrint bridge ("Condition became true, with " ++ show a0 ++ " (" ++ show b0 ++ ")")
         ebSendEvent bridge "ConditionMet"
       return cond
 
@@ -188,7 +191,7 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     -- TODO: Print summary information about the history
     Just SummarizeHistory     -> do let ((a0, sf0), ps) = previous
                                         num             = length ps
-                                    (ebPrint bridge) ("CurrentHistory " ++ show num)
+                                    ebPrint bridge ("CurrentHistory " ++ show num)
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
     -- TODO: Jump to a specific frame
@@ -284,6 +287,12 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
 
+    Just (GetInput f)         -> do let ((a0, sf0), ps) = previous
+                                        as = a0 : map (\(a,_,_) -> a) ps
+                                        e  = if length as >= f then Nothing else Just (as !! f)
+                                    ebSendMsg bridge (show e)
+                                    reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
+
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
                                     reactimateControl' bridge prefs previous commandQ' init sense actuate sf lastInput
@@ -335,35 +344,34 @@ reactimateControl' bridge prefs previous commandQ init sense actuate sf lastInpu
       -- Check condition
       let cond = evalPred p dt a0 b0
       when cond $ do
-        (ebPrint bridge) ("Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
+        ebPrint bridge ("Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
         ebSendEvent bridge "ConditionMet"
       return cond
-
-
 
 -- * Commands
 
 -- | An interactive, debugging command.
-data Command p = Step                       -- ^ Execute a complete simulation cycle
-               | StepUntil p                -- ^ Execute cycles until a predicate holds
-               | SkipUntil p                -- ^ Skip cycles until a predicate holds
-               | SkipSense                  -- ^ Skip cycle while sensing the input
-               | Redo                       -- ^ Re-execute the last step
-               | SkipBack                   -- ^ Jump one step back in the simulation
-               | JumpTo Int                 -- ^ Jump to a specific frame
-               | Exit                       -- ^ Stop the simulation and exit the program
-               | Play                       -- ^ Start executing normally
-               | Pause                      -- ^ Pause the simulation
-               | Stop                       -- ^ Stop the simulation
-               | ReloadTrace      String    -- ^ Reload the Trace from a file (not implemented yet)
-               | IOSense                    -- ^ Sense input                  (not implemented yet)
-               | GetCurrentFrame            -- ^ Obtain the current frame
-               | GetCurrentTime             -- ^ Obtain the current time      (not implemented yet)
-               | TravelToFrame    Int       -- ^ Simulate up to a particular frame   (not implemented yet)
-               | TeleportToFrame  Int       -- ^ Skip to a particular frame (not implemented)
-               | SummarizeHistory           -- ^ Print summary information about the history
-               | SetPrefDumpInput Bool      -- ^ Alter simulation preferences
-               | GetPrefDumpInput           -- ^ Obtain simulation preferences
+data Command p = Step                       -- ^ Control: Execute a complete simulation cycle
+               | StepUntil p                -- ^ Control: Execute cycles until a predicate holds
+               | SkipUntil p                -- ^ Control: Skip cycles until a predicate holds
+               | SkipSense                  -- ^ Control: Skip cycle while sensing the input
+               | Redo                       -- ^ Control: Re-execute the last step
+               | SkipBack                   -- ^ Control: Jump one step back in the simulation
+               | JumpTo Int                 -- ^ Control: Jump to a specific frame
+               | TravelToFrame    Int       -- ^ Control: Simulate up to a particular frame   (not implemented yet)
+               | TeleportToFrame  Int       -- ^ Control: Skip to a particular frame          (not implemented)
+               | Exit                       -- ^ Control: Stop the simulation and exit the program
+               | Play                       -- ^ Control: Start executing normally
+               | Pause                      -- ^ Control: Pause the simulation
+               | Stop                       -- ^ Control: Stop the simulation
+               | ReloadTrace      String    -- ^ Control: Reload the Trace from a file (not implemented yet)
+               | IOSense                    -- ^ Control: Sense input                  (not implemented yet)
+               | GetInput Int               -- ^ Info: Obtain input at a particular frame
+               | GetCurrentFrame            -- ^ Info: Obtain the current frame
+               | GetCurrentTime             -- ^ Info: Obtain the current time
+               | SummarizeHistory           -- ^ Info: Print summary information about the history
+               | SetPrefDumpInput Bool      -- ^ Preferences: Alter simulation preferences
+               | GetPrefDumpInput           -- ^ Preferences: Obtain simulation preferences
                | Ping                       -- ^ Debugging: send a pong back to the GUI
  deriving (Eq, Read, Show)
 
@@ -402,8 +410,8 @@ getCommand bridge cmds = do
   let cmLines = map maybeRead mLines
       cLines  = catMaybes cmLines
   unless (null mLines) $ do
-    (ebPrint bridge) (show mLines)
-    (ebPrint bridge) (show cmLines)
+    ebPrint bridge (show mLines)
+    ebPrint bridge (show cmLines)
   case cmds ++ cLines of
     []     -> return (Nothing, [])
     (c:cs) -> return (Just c, cs)
