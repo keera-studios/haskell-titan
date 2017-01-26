@@ -204,12 +204,10 @@ simActuate (_, _, op) = op
 
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                   => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
-                   -> Preferences                               -- ^ Debug: Debugging preferences
-                   -> History a b                               -- ^ Execution History: list of inputs and SF continuations
-                                                                -- ^ FRP:   Signal Function that defines the program
-                                                                -- ^ Debug: Last known input
-                   -> [Command p]                               -- ^ Debug: List of initial commands execute
+                   => ExternalBridge                            -- ^ Communication bridge for the interactive GUI
+                   -> Preferences                               -- ^ Debugging preferences
+                   -> History a b                               -- ^ Execution History: list of inputs and SF continuations, cur SF, inputs
+                   -> [Command p]                               -- ^ List of pending commands execute
                    -> SimOps a b
                    -> IO ()
 reactimateControl1 bridge prefs history commandQ simOps  = do
@@ -231,7 +229,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                     case historyJumpTo history n of
                                       (Just history', Nothing) -> do
                                         reactimateControl1 bridge prefs history' commandQ' simOps
-                                      (Just history', Just (Left (sf', lastInput'))) -> do
+                                      (Just history', Just (Left _)) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Just (Right sf0)) ->
@@ -242,7 +240,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                     case historyDiscardFuture history n of
                                       (Just history', Nothing) -> do
                                         reactimateControl1 bridge prefs history' commandQ' simOps
-                                      (Just history', Just (Left (sf', lastInput'))) -> do
+                                      (Just history', Just (Left _)) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Just (Right sf0)) ->
@@ -251,7 +249,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case historyBack history of
-                                      (Just history', Left (sf', lastInput')) -> do
+                                      (Just history', Left _) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Right sf0) ->
@@ -290,7 +288,6 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                     let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     cond <- checkCond p (Just dt) a' b'
-
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
 
                                     unless last $
@@ -298,6 +295,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1 history
+                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     cond <- checkCond p (Just dt) a' b'
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
@@ -305,7 +303,6 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
                                     last <- if cond then simActuate simOps True b' else return False
-                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     unless last $
                                       reactimateControl1 bridge prefs history' commandQ'' simOps
@@ -322,7 +319,8 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
     Just Pause                -> reactimateControl1 bridge prefs history commandQ' simOps
 
     Just (IOSense f)          -> do (dt, ma') <- simSense1 simOps False
-                                    let a' = fromMaybe (getLastInput history) ma'
+                                    -- Unsafe fromJust use
+                                    let a' = fromMaybe (fromJust $ getLastInput history) ma'
                                     when (dumpInput prefs) $ print a'
                                     let history'' = historyReplaceInputDTimeAt history f dt a'
                                     reactimateControl1 bridge prefs history'' commandQ' simOps
@@ -371,8 +369,8 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
   where
     step1 history = do
       (dt, ma') <- simSense1 simOps False
-      let a'       = fromMaybe (getLastInput history) ma'
-          sf       = getCurSF history
+      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
+          sf       = fromRight $ getCurSF history
           (sf',b') = (sfTF' sf) dt a'
       when (dumpInput prefs) $ print a'
 
@@ -382,8 +380,8 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
 
     skip1 history = do
       (dt, ma') <- simSense1 simOps False
-      let a'       = fromMaybe (getLastInput history) ma'
-          sf       = getCurSF history
+      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
+          sf       = fromRight $ getCurSF history
           (sf',b') = (sfTF' sf) dt a'
 
       when (dumpInput prefs) $ print a'
@@ -488,8 +486,8 @@ appendCommand cs c = cs ++ [c]
 -- * Execution History
 data History a b = History
   { getHistory   :: ((a, SF a b), [(a, DTime, SF' a b)])
-  , getCurSF     :: SF' a b
-  , getLastInput :: a
+  , getCurSF     :: Either (SF a b) (SF' a b)
+  , getLastInput :: Maybe a
   }
 
 historyReplaceInputAt history f a =
@@ -547,11 +545,11 @@ historyGetCurrentFrame history =
       num             = length ps
   in num
 
-mkHistory (a0, sf0) sf' a = History ((a0, sf0),[]) sf' a
+mkHistory (a0, sf0) sf' a = History ((a0, sf0),[]) (Right sf') (Just a)
 
 historyRecordFrame1 history (a', dt, sf') =
   let ((a0, sf0), ps) = getHistory history
-  in History ((a0, sf0), (a', dt, sf'):ps) sf' a'
+  in History ((a0, sf0), (a', dt, sf'):ps) (Right sf') (Just a')
 
 historyGetNumFrames history =
   let ((a0, sf0), ps) = getHistory history
@@ -564,8 +562,8 @@ historyGetCurFrame history =
 
 historyBack history =
   case getHistory history of
-    ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History ((a0, sf0), prevs) sf' lastInput, Left (sf', lastInput))
-    ((a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History ((a0, sf0), [])    sf' a0,    Left (sf', a0))
+    ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Left (sf', lastInput))
+    ((a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History ((a0, sf0), [])    (Right sf') (Just a0),        Left (sf', a0))
     ((a0, sf0), _:[])                                        -> (Nothing, Right sf0)
     ((a0, sf0), [])                                          -> (Nothing, Right sf0)
 
@@ -575,7 +573,7 @@ historyJumpTo history n =
   in if (length ps + 1 > n)
        then if n > 0
               then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
-                   in (Just $ History ((a0, sf0), prevs) sf' lastInput, Just $ Left (sf', lastInput))
+                   in (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
               else (Nothing, Just $ Right sf0)
        else (Just history, Nothing)
 
@@ -585,7 +583,7 @@ historyDiscardFuture history n =
   in if (length ps + 1 > n)
        then if n > 0
               then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
-                   in (Just $ History ((a0, sf0), prevs) sf' lastInput, Just $ Left (sf', lastInput))
+                   in (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
               else (Nothing, Just $ Right sf0)
        else (Just history, Nothing)
 
@@ -628,3 +626,11 @@ appAt :: Int -> (a -> a) -> [a] -> [a]
 appAt _ f [] = []
 appAt 0 f (x:xs) = f x : xs
 appAt n f (x:xs) = x : appAt (n-1) f xs
+
+-- TODO: Remove
+fromLeft :: Either a b -> a
+fromLeft (Left a) = a
+
+-- TODO: Remove
+fromRight :: Either a b -> b
+fromRight (Right b) = b
