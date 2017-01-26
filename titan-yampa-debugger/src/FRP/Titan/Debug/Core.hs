@@ -84,12 +84,6 @@ dispatchCommand simState =
 -- | Start a Yampa program with interactive debugging enabled.
 reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => SimState p a b -> IO () 
-                   -- => (ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
-                   -- -> Preferences                    -- ^ Debug: Debugging preferences
-                   -- -> History a b
-                   -- -> [Command p]                    -- ^ Debug: List of commands to execute
-                   -- -> SimOps a b                     -- ^ FRP:   Simulation (sensing, actuating) actions
-                   -- -> IO ()
 reactimateControl0 simState = do
   (command,commandQ') <- getCommand (simBridge simState) (simCommands simState)
   let simState' = simState { simCommands = commandQ' }
