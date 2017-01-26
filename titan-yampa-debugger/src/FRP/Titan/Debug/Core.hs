@@ -10,20 +10,20 @@
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
 -- control and debugging capabilities.
 module FRP.Titan.Debug.Core
-    (
-      -- * Debugging
-      reactimateControl
-      -- ** Debugging commands
-    , Command(..)
-      -- *** Debugging command queue
-    , getCommand
-    , pushCommand
-      -- ** Debugging preferences
-    , Preferences(..)
-    , defaultPreferences
-      -- ** Debugging predicates
-    , Pred(..)
-    )
+--     (
+--       -- * Debugging
+--       reactimateControl
+--       -- ** Debugging commands
+--     , Command(..)
+--       -- *** Debugging command queue
+--     , getCommand
+--     , pushCommand
+--       -- ** Debugging preferences
+--     , Preferences(..)
+--     , defaultPreferences
+--       -- ** Debugging predicates
+--     , Pred(..)
+--     )
   where
 
 import Control.Applicative       ((<$>))
@@ -61,11 +61,12 @@ reactimateControl bridge prefs cmds init sense actuate sf =
   let history = mkEmptyHistory sf
   in evalStateT run (SimState bridge prefs history cmds (init, sense, actuate) False)
 
+-- | Run the debugger continuously until it finishes
 run :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
     => SimMonad p a b ()
 run = get >>= \s -> unless (simFinished s) (reactimateDebugStep >> run)
 
--- | Continue simulating a Yampa program with interactive debugging enabled.
+-- | Process one input command of a Yampa program with interactive debugging enabled.
 reactimateDebugStep :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => SimMonad p a b ()
 reactimateDebugStep = do
@@ -84,7 +85,7 @@ reactimateDebugStep = do
 
     -- Jump to a specific frame
     Just (JumpTo n)           -> do running <- (historyIsRunning . simHistory) <$> get
-                                    when (running) $ do
+                                    when running $ do
                                       simSendEvent    "CurrentFrameChanged"
                                       simModifyHistory (`historyJumpTo` n)
                                       hPushCommand Redo
@@ -124,7 +125,7 @@ reactimateDebugStep = do
     -- TODO: Skip cycle while sensing the input
     -- Should the input be used as new last input?
     Just SkipSense            -> do running <- (historyIsRunning . simHistory) <$> get
-                                    a <- if running then (snd <$> simSense1 False) else (Just <$> simSense)
+                                    a <- if running then snd <$> simSense1 False else Just <$> simSense
 
                                     showInput <- (dumpInput . simPrefs) <$> get
                                     when showInput $ simPrint $ show a
@@ -165,7 +166,7 @@ reactimateDebugStep = do
                                     if running
                                       then do
                                         (dt, ma') <- simSense1  False
-                                        history <- getSimHistory
+                                        history   <- getSimHistory
                                         -- Unsafe fromJust use
                                         let a' = fromMaybe (fromJust $ getLastInput history) ma'
 
@@ -216,55 +217,6 @@ reactimateDebugStep = do
 
     Just c                    -> do simSendEvent ("Got " ++ show c ++ ", dunno what to do with it")
   where
-    step1 = do
-      simState <- get
-      history  <- getSimHistory
-      (dt, ma') <- simSense1  False
-      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
-          sf       = fromRight $ getCurSF history
-          (sf',b') = (sfTF' sf) dt a'
-      when (dumpInput (simPrefs simState)) $ simPrint $ show a'
-
-      last <- simActuate  True b'
-      when last (modify simFinish)
-      simSendEvent     "CurrentFrameChanged"
-      return (a', dt, sf', b')
-
-    stepG = do running <- (historyIsRunning . simHistory) <$> get
-               if running then stepR else ((\(a,b) -> (a, Nothing, b)) <$> step0)
-
-    skipG = do running <- (historyIsRunning . simHistory) <$> get
-               if running then skipR else ((\(a,b) -> (a, Nothing, b)) <$> skip0)
-
-    stepR = stepRR step1
-
-    skipR = stepRR skip1
-
-    stepRR stF = do
-      (a', dt, sf', b') <- stF
-      simModifyHistory (`historyRecordFrame1` (a', dt, sf'))
-      return (a', Just dt, b')
-
-    skip1 = do
-      simState <- get
-      history  <- getSimHistory
-      (dt, ma') <- simSense1 False
-      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
-          sf       = fromRight $ getCurSF history
-          (sf',b') = (sfTF' sf) dt a'
-
-      when (dumpInput (simPrefs simState)) $ simPrint $ show a'
-      simSendEvent     "CurrentFrameChanged"
-      return (a', dt, sf', b')
-
-    checkCond p dt a0 b0 = do
-      simState <- get
-      -- Check condition
-      let cond = evalPred p dt a0 b0
-      when cond $ do
-        simPrint ("Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
-        simSendEvent  "ConditionMet"
-      return cond
 
     -- step0 :: IO (a, SF' a b, b)
     step0 = do
@@ -299,6 +251,51 @@ reactimateDebugStep = do
       simModifyHistory (const (mkHistory (a0, sf) sf' a0))
       return (a0, b0)
 
+    stepRR stF = do
+      simState <- get
+      (a', dt, sf', b') <- stF
+      simModifyHistory (`historyRecordFrame1` (a', dt, sf'))
+      when (dumpInput (simPrefs simState)) $ simPrint $ show a'
+      simSendEvent     "CurrentFrameChanged"
+      return (a', Just dt, b')
+
+    step1 = do
+      (dt, ma')    <- simSense1  False
+
+      history      <- getSimHistory
+      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
+          sf       = fromRight $ getCurSF history
+          (sf',b') = (sfTF' sf) dt a'
+      last         <- simActuate  True b'
+
+      when last (modify simFinish)
+      return (a', dt, sf', b')
+
+    skip1 = do
+      (dt, ma')    <- simSense1 False
+
+      history      <- getSimHistory
+      let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
+          sf       = fromRight $ getCurSF history
+          (sf',b') = (sfTF' sf) dt a'
+
+      return (a', dt, sf', b')
+
+    stepG = do running <- (historyIsRunning . simHistory) <$> get
+               if running then stepRR step1 else (\(a,b) -> (a, Nothing, b)) <$> step0
+
+    skipG = do running <- (historyIsRunning . simHistory) <$> get
+               if running then stepRR skip1 else (\(a,b) -> (a, Nothing, b)) <$> skip0
+
+    checkCond p dt a0 b0 = do
+      simState <- get
+      -- Check condition
+      let cond = evalPred p dt a0 b0
+      when cond $ do
+        simPrint ("Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
+        simSendEvent  "ConditionMet"
+      return cond
+
 -- * Simulation State
 
 data SimState p a b = SimState
@@ -325,7 +322,7 @@ simSendMsg msg = get >>= \simState -> lift $ ebSendMsg (simBridge simState) msg
 simSendEvent :: String -> SimMonad p a b ()
 simSendEvent msg = get >>= \simState -> lift $ ebSendEvent (simBridge simState) msg
 
-type SimOps a b = (IO a, (Bool -> IO (DTime, Maybe a)), (Bool -> b -> IO Bool))
+type SimOps a b = (IO a, Bool -> IO (DTime, Maybe a), Bool -> b -> IO Bool)
 
   -- IO a                                      -- ^ FRP:   Initial sensing action
   -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
@@ -470,9 +467,11 @@ data History a b = History
 -- ** Construction
 
 -- | Create empty history pending to run a signal function
+mkEmptyHistory :: SF a b -> History a b
 mkEmptyHistory sf = History (Nothing,[]) (-1) (Left  sf) Nothing
 
 -- | Create empty history with an initial sample and sf, and a next SF'
+mkHistory :: (a, SF a b) -> SF' a b -> a -> History a b
 mkHistory (a0, sf0) sf' a =
   History (Just (a0, Just sf0),[]) 0 (Right sf') (Just a)
 
@@ -481,6 +480,7 @@ historyIsRunning :: History a b -> Bool
 historyIsRunning history = isRight (getCurSF history)
 
 -- | Replace the input for a given frame/sample
+historyReplaceInputAt :: History a b -> Int -> a -> History a b
 historyReplaceInputAt history f a
     | ns < f    = history 
     | f == 0    = if isNothing (fst hs)
@@ -493,6 +493,7 @@ historyReplaceInputAt history f a
     (Just (a0, sf0), ps) = hs
 
 -- | Replace the time for a given frame/sample
+historyReplaceDTimeAt :: History a b -> Int -> DTime -> History a b
 historyReplaceDTimeAt history f dt =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
@@ -503,6 +504,7 @@ historyReplaceDTimeAt history f dt =
               else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps) }
 
 -- | Replace the input and the time for a given frame/sample
+historyReplaceInputDTimeAt :: History a b -> Int -> DTime -> a -> History a b
 historyReplaceInputDTimeAt history f dt a =
   let (Just (a0, sf0), ps) = getHistory history
       as              = a0 : map (\(a,_,_) -> a) ps
@@ -513,6 +515,7 @@ historyReplaceInputDTimeAt history f dt a =
               else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
 
 -- | Get the total time at a given point/frame
+historyGetGTime :: History a b -> Int -> Maybe DTime
 historyGetGTime history f =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
@@ -520,6 +523,7 @@ historyGetGTime history f =
   in e
 
 -- | Get the time delta for a given frame
+historyGetDTime :: History a b -> Int -> Maybe DTime
 historyGetDTime history f =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
@@ -527,6 +531,7 @@ historyGetDTime history f =
   in e
 
 -- | Get the input for a given frame
+historyGetInput :: History a b -> Int -> Maybe a
 historyGetInput history f =
   let (Just (a0, sf0), ps) = getHistory history
       as = a0 : map (\(a,_,_) -> a) ps
@@ -534,34 +539,40 @@ historyGetInput history f =
   in e
 
 -- | Get the time for the current frame
+historyGetCurrentTime :: History t b -> DTime
 historyGetCurrentTime history =
   case getHistory history of
     (Just (a0, sf0), ps)  -> sum $ map (\(_,dt,_) -> dt) ps
-    (Nothing, _)          -> (-1) 
+    (Nothing, _)          -> 0
 
 -- | Get the current frame number.
+historyGetCurrentFrame :: History a b -> Int
 historyGetCurrentFrame history = 
   case getHistory history of
     (Just (a0, sf0), ps) -> length ps
-    (Nothing, _)         -> (-1)
+    (Nothing, _)         -> -1
 
 -- | Record a running frame
+historyRecordFrame1 :: History a b -> (a, DTime, SF' a b) -> History a b
 historyRecordFrame1 history (a', dt, sf') =
   let (Just (a0, sf0), ps) = getHistory history
   in History (Just (a0, sf0), (a', dt, Just sf'):ps) (getPos history) (Right sf') (Just a')
 
 -- | Get the total number of frames
+historyGetNumFrames :: History t b -> Int
 historyGetNumFrames history =
   let (Just (a0, sf0), ps) = getHistory history
-  in (length ps + 1)
+  in length ps + 1
 
 -- | Get the current frame info
+historyGetCurFrame :: History a b -> (a, Maybe DTime, Either (Maybe (SF a b)) (Maybe (SF' a b)))
 historyGetCurFrame history =
   case getHistory history of
     (Just (a0, sf0), (an, dt, sfn):prevs) -> (an, Just dt, Right sfn)
     (Just (a0, sf0), [])                  -> (a0, Nothing, Left  sf0)
 
 -- | Move one step back in history
+historyBack :: History a b -> History a b
 historyBack history = history { getPos = max (-1) (getPos history) }
   -- case getHistory history of
   --   (Just (a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History (Just (a0, sf0), prevs) (Right sf') (Just lastInput), Right (sf', lastInput))
@@ -577,7 +588,7 @@ historyJumpTo history n =
   case getHistory history of
     (Nothing,_)          -> history
     (Just (a0, sf0), ps) -> 
-      if (length ps + 1 > n)
+      if length ps + 1 > n
         then if n > 0
                then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
                     in History (Just (a0, sf0), prevs) n (Right (fromJust sf')) (Just lastInput)
@@ -590,7 +601,7 @@ historyDiscardFuture history n =
   case getHistory history of
     (Nothing,_)          -> history
     (Just (a0, sf0), ps) -> 
-      if (length ps + 1 > n)
+      if length ps + 1 > n
         then if n > 0
                then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
                     in History (Just (a0, sf0), prevs) (min n (getPos history)) (Right (fromJust sf')) (Just lastInput)
