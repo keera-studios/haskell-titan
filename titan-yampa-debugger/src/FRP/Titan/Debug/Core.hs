@@ -10,20 +10,20 @@
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
 -- control and debugging capabilities.
 module FRP.Titan.Debug.Core
---     (
---       -- * Debugging
---       reactimateControl
---       -- ** Debugging commands
---     , Command(..)
---       -- *** Debugging command queue
---     , getCommand
---     , pushCommand
---       -- ** Debugging preferences
---     , Preferences(..)
---     , defaultPreferences
---       -- ** Debugging predicates
---     , Pred(..)
---     )
+    (
+      -- * Debugging
+      reactimateControl
+      -- ** Debugging commands
+    , Command(..)
+      -- *** Debugging command queue
+    , getCommand
+    , pushCommand
+      -- ** Debugging preferences
+    , Preferences(..)
+    , defaultPreferences
+      -- ** Debugging predicates
+    , Pred(..)
+    )
   where
 
 import Control.Applicative       ((<$>))
@@ -33,7 +33,7 @@ import Control.Monad.Trans.State
 import Data.Maybe
 import Data.Either               (isRight)
 import FRP.Yampa                 as Yampa
-import FRP.Yampa.InternalCore    (SF(..), SF'(..), sfTF', DTime)
+import FRP.Yampa.InternalCore    (SF(..), SF'(..), sfTF')
 
 import FRP.Titan.Debug.Comm
 
@@ -101,16 +101,9 @@ reactimateDebugStep = do
                                     when (running) $ do
                                       simModifyHistory historyBack
                                       hPushCommand Redo
-                                      -- case historyBack history of
-                                      --   (Just history', Right _) -> do
-                                      --     hPushCommand Redo
-                                      --     simModifyHistory (const history')
-                                      --   (Nothing, Left sf0) ->
-                                      --     simModifyHistory (const (mkEmptyHistory sf0))
 
     -- Re-execute the last step
-    Just Redo                 -> -- put ((simBridge simState) (simPrefs simState) history commandQ' sense actuate sf lastInput)
-                                 do (a0, mdt, sfc) <- historyGetCurFrame <$> getSimHistory
+    Just Redo                 -> do (a0, mdt, sfc) <- historyGetCurFrame <$> getSimHistory
                                     let (sf', b0) = case (mdt, sfc) of
                                                       (_,       Left  (Just sf0)) -> sfTF  sf0 a0
                                                       (Just dt, Right (Just sf1)) -> sfTF' sf1 dt a0
@@ -486,7 +479,7 @@ historyReplaceInputAt history f a
     | f == 0    = if isNothing (fst hs)
                     then history
                     else history { getHistory = (Just (a, sf0), ps) }
-    | otherwise = History { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps) }
+    | otherwise = history { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps) }
   where
     hs = getHistory history
     ns = length (snd hs)
@@ -500,8 +493,8 @@ historyReplaceDTimeAt history f dt =
   in if length dts >= f
        then history
        else if f == 0
-              then History { getHistory = (Just (a0, sf0), ps) }
-              else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps) }
+              then history { getHistory = (Just (a0, sf0), ps) }
+              else history { getHistory = (Just (a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps) }
 
 -- | Replace the input and the time for a given frame/sample
 historyReplaceInputDTimeAt :: History a b -> Int -> DTime -> a -> History a b
@@ -511,8 +504,8 @@ historyReplaceInputDTimeAt history f dt a =
   in if length as >= f
        then history
        else if f == 0
-              then History { getHistory = (Just (a, sf0), ps) }
-              else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
+              then history { getHistory = (Just (a, sf0), ps) }
+              else history { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
 
 -- | Get the total time at a given point/frame
 historyGetGTime :: History a b -> Int -> Maybe DTime
@@ -547,10 +540,7 @@ historyGetCurrentTime history =
 
 -- | Get the current frame number.
 historyGetCurrentFrame :: History a b -> Int
-historyGetCurrentFrame history = 
-  case getHistory history of
-    (Just (a0, sf0), ps) -> length ps
-    (Nothing, _)         -> -1
+historyGetCurrentFrame history =  getPos history
 
 -- | Record a running frame
 historyRecordFrame1 :: History a b -> (a, DTime, SF' a b) -> History a b
@@ -561,15 +551,16 @@ historyRecordFrame1 history (a', dt, sf') =
 -- | Get the total number of frames
 historyGetNumFrames :: History t b -> Int
 historyGetNumFrames history =
-  let (Just (a0, sf0), ps) = getHistory history
-  in length ps + 1
+  case getHistory history of
+    (Just (a0, sf0), ps) -> length ps + 1
+    (Nothing, _)         -> 0
 
 -- | Get the current frame info
 historyGetCurFrame :: History a b -> (a, Maybe DTime, Either (Maybe (SF a b)) (Maybe (SF' a b)))
 historyGetCurFrame history =
   case getHistory history of
-    (Just (a0, sf0), (an, dt, sfn):prevs) -> (an, Just dt, Right sfn)
     (Just (a0, sf0), [])                  -> (a0, Nothing, Left  sf0)
+    (_,              (an, dt, sfn):prevs) -> (an, Just dt, Right sfn)
 
 -- | Move one step back in history
 historyBack :: History a b -> History a b
