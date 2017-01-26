@@ -90,14 +90,14 @@ type SimOps a b = (IO a, (Bool -> IO (DTime, Maybe a)), (Bool -> b -> IO Bool))
   -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
   -- (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
 
-simSense :: SimOps a b -> IO a
-simSense (op, _, _) = op
+simSense :: SimMonad p a b a
+simSense = get >>= \s -> let (op, _, _) = simOps s in lift op
 
-simSense1 :: SimOps a b -> Bool -> IO (DTime, Maybe a)
-simSense1 (_, op, _) = op
+simSense1 :: Bool -> SimMonad p a b (DTime, Maybe a)
+simSense1 b = get >>= \s -> let (_, op, _) = simOps s in lift (op b)
 
-simActuate :: SimOps a b -> Bool -> b -> IO Bool
-simActuate (_, _, op) = op
+simActuate :: Bool -> b -> SimMonad p a b Bool
+simActuate c b = get >>= \s -> let (_, _, op) = simOps s in lift (op c b)
 
 simFinish :: SimState p a b -> SimState p a b
 simFinish simState = simState { simFinished = True }
@@ -136,15 +136,15 @@ reactimateControl0 = do
     Just Redo                -> return ()
 
     -- TODO: Skip cycle while sensing the input
-    Just SkipSense           -> do a0 <- lift $ simSense (simOps simState)
+    Just SkipSense           -> do a0 <- simSense 
                                    when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
-                                   let myInit = do (_,ma') <- simSense1 (simOps simState) False
-                                                   return $ fromMaybe a0 ma'
+                                   -- let myInit = do (_,ma') <- simSense1  False
+                                   --                 return $ fromMaybe a0 ma'
 
                                    simSendEvent  "CurrentFrameChanged"
 
-                                   put (simState { simOps = (myInit, simSense1 (simOps simState), simActuate (simOps simState)) })
+                                   -- put (simState { simOps = (\(_,s1,act) -> (myInit, s1, act)) (simOps simState) })
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do simSendEvent  "CurrentFrameChanged"
@@ -208,13 +208,13 @@ reactimateControl0 = do
       -- Step
       simState <- get
       history  <- getSimHistory
-      a0 <- lift $ simSense (simOps simState)
+      a0 <- simSense 
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
       let sf       = fromLeft (getCurSF history)
           tf0      = sfTF sf
           (sf',b0) = tf0 a0
-      _ <- lift $ simActuate (simOps simState) True b0
+      _ <- simActuate  True b0
       simSendEvent   "CurrentFrameChanged"
       return (a0, sf', b0)
 
@@ -222,7 +222,7 @@ reactimateControl0 = do
     skip0 = do
       simState <- get
       history  <- getSimHistory
-      a0 <- lift $ simSense (simOps simState)
+      a0 <- simSense 
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
       let sf   = fromLeft (getCurSF history)
@@ -301,13 +301,13 @@ reactimateControl1 = do
                                                       (Just dt, Right sf1) -> sfTF' sf1 dt a0
 
                                     when (dumpInput (simPrefs simState)) $ simPrint $ show a0
-                                    last <- lift $ simActuate (simOps simState) True b0
+                                    last <- simActuate  True b0
                                     when last (modify simFinish)
 
 
     -- TODO: Skip cycle while sensing the input
     -- Should the input be used as new last input?
-    Just SkipSense            -> do (_,a)  <- lift $ simSense1 (simOps simState) False
+    Just SkipSense            -> do (_,a)  <- simSense1  False
                                     when (dumpInput (simPrefs simState)) $ simPrint $ show a
                                     simSendEvent    "CurrentFrameChanged"
 
@@ -343,7 +343,7 @@ reactimateControl1 = do
 
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
-                                    last <- if cond then lift (simActuate (simOps simState) True b') else return False
+                                    last <- if cond then simActuate True b' else return False
 
                                     let simState'' = (simState { simHistory = history' })
                                     put simState''
@@ -363,7 +363,7 @@ reactimateControl1 = do
 
     Just Pause                -> return ()
 
-    Just (IOSense f)          -> do (dt, ma') <- lift $ simSense1 (simOps simState) False
+    Just (IOSense f)          -> do (dt, ma') <- simSense1  False
                                     -- Unsafe fromJust use
                                     history <- getSimHistory
                                     let a' = fromMaybe (fromJust $ getLastInput history) ma'
@@ -408,20 +408,20 @@ reactimateControl1 = do
     step1 = do
       simState <- get
       history  <- getSimHistory
-      (dt, ma') <- lift $ simSense1 (simOps simState) False
+      (dt, ma') <- simSense1  False
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
           sf       = fromRight $ getCurSF history
           (sf',b') = (sfTF' sf) dt a'
       when (dumpInput (simPrefs simState)) $ simPrint $ show a'
 
-      last <- lift $ simActuate (simOps simState) True b'
+      last <- simActuate  True b'
       simSendEvent     "CurrentFrameChanged"
       return (a', dt, sf', b', last)
 
     skip1 = do
       simState <- get
       history  <- getSimHistory
-      (dt, ma') <- lift $ simSense1 (simOps simState) False
+      (dt, ma') <- simSense1 False
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
           sf       = fromRight $ getCurSF history
           (sf',b') = (sfTF' sf) dt a'
