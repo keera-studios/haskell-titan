@@ -72,6 +72,9 @@ data SimState p a b = SimState
 getSimHistory :: SimMonad p a b (History a b)
 getSimHistory = simHistory <$> get
 
+getSimCommands :: SimMonad p a b [Command p]
+getSimCommands = simCommands <$> get
+
 simPrint :: String -> SimMonad p a b ()
 simPrint msg = get >>= \simState -> lift $ ebPrint (simBridge simState) msg
 
@@ -118,9 +121,7 @@ reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a 
                    => SimMonad p a b ()
 reactimateControl0 = do
   simState <- get
-  (command,commandQ') <- lift $ getCommand (simBridge simState) (simCommands simState)
-  let simState' = simState { simCommands = commandQ' }
-  put simState'
+  command <- simGetCommand
 
   -- Process one command and loop
   case command of
@@ -143,48 +144,47 @@ reactimateControl0 = do
 
                                    simSendEvent  "CurrentFrameChanged"
 
-                                   put (simState' { simOps = (myInit, simSense1 (simOps simState), simActuate (simOps simState)) })
+                                   put (simState { simOps = (myInit, simSense1 (simOps simState), simActuate (simOps simState)) })
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do simSendEvent  "CurrentFrameChanged"
 
     -- Simulate indefinitely
     Just Play                 -> do (a0, sf', _) <- step0
-                                    let commandQ'' = if any stopPlayingCommand commandQ'
-                                                       then commandQ'
-                                                       else appendCommand commandQ' Play
-                                        sf         = fromLeft (getCurSF (simHistory simState))
-                                        history'   = mkHistory (a0, sf) sf' a0
-                                    put (simState' { simHistory = history', simCommands = commandQ'' })
+                                    commandQ <- getSimCommands
+                                    unless (any stopPlayingCommand commandQ) (hAppendCommand Play)
+                                    sf <- (fromLeft . getCurSF) <$> getSimHistory
+                                    let history'   = mkHistory (a0, sf) sf' a0
+                                    put (simState { simHistory = history' })
 
     Just Pause                -> return () 
 
     -- Simulate one step forward
     Just Step                 -> do (a0, sf', _) <- step0
+                                    sf <- (fromLeft . getCurSF) <$> getSimHistory
                                     let history'   = mkHistory (a0, sf) sf' a0
-                                        sf         = fromLeft (getCurSF (simHistory simState))
-                                    put (simState' { simHistory = history' })
+                                    put (simState { simHistory = history' })
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a0, sf', b0) <- step0
                                     cond          <- checkCond p Nothing a0 b0
-                                    let simState'' = if cond then simState else hPushCommand simState (StepUntil p)
+                                    unless cond $ hPushCommand (StepUntil p)
+                                    sf <- (fromLeft . getCurSF) <$> getSimHistory
                                     let history'   = mkHistory (a0, sf) sf' a0
-                                        sf         = fromLeft (getCurSF (simHistory simState))
 
                                     -- Continue
                                     -- TODO Potential bug here: it could simulate too much!
-                                    put (simState'' { simHistory = history' })
+                                    modify (\simState'' -> simState'' { simHistory = history' })
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a0, sf', b0) <- skip0
                                     cond          <- checkCond p Nothing a0 b0
-                                    let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
+                                    unless cond $ hPushCommand (SkipUntil p)
+                                    sf <- (fromLeft . getCurSF) <$> getSimHistory
                                     let history'   = mkHistory (a0, sf) sf' a0
-                                        sf         = fromLeft (getCurSF (simHistory simState))
 
                                     -- TODO Potential bug here: it could simulate too much!
-                                    put (simState' { simHistory = history', simCommands = commandQ'' })
+                                    modify (\simState'' -> simState'' { simHistory = history' })
 
     Just (GetInput _)         -> do simSendMsg  ("Nothing")
 
@@ -207,10 +207,11 @@ reactimateControl0 = do
     step0 = do
       -- Step
       simState <- get
+      history  <- getSimHistory
       a0 <- lift $ simSense (simOps simState)
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
-      let sf       = fromLeft (getCurSF (simHistory simState))
+      let sf       = fromLeft (getCurSF history)
           tf0      = sfTF sf
           (sf',b0) = tf0 a0
       _ <- lift $ simActuate (simOps simState) True b0
@@ -220,10 +221,11 @@ reactimateControl0 = do
     -- skip0 :: IO (a, SF' a b, b)
     skip0 = do
       simState <- get
+      history  <- getSimHistory
       a0 <- lift $ simSense (simOps simState)
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
-      let sf   = fromLeft (getCurSF (simHistory simState))
+      let sf   = fromLeft (getCurSF history)
           tf0  = sfTF sf
           (sf',b0) = tf0 a0
       simSendEvent  "CurrentFrameChanged"
@@ -245,9 +247,7 @@ reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a 
                    => SimMonad p a b ()
 reactimateControl1 = do
   simState <- get
-  (command,commandQ') <- lift $ getCommand (simBridge simState) (simCommands simState)
-  let simState' = simState { simCommands = commandQ' }
-  put simState'
+  command <- simGetCommand
 
   case command of
 
@@ -256,44 +256,47 @@ reactimateControl1 = do
     Just Exit -> modify simFinish
 
     -- TODO: Print summary information about the history
-    Just SummarizeHistory     -> do let num = historyGetNumFrames (simHistory simState)
+    Just SummarizeHistory     -> do num <- historyGetNumFrames <$> getSimHistory
                                     simPrint  ("CurrentHistory " ++ show num)
 
     -- Jump to a specific frame
     Just (JumpTo n)           -> do simSendEvent    "CurrentFrameChanged"
-                                    case historyJumpTo (simHistory simState) n of
+                                    history <- getSimHistory
+                                    case historyJumpTo history n of
                                       (Just history', Nothing) -> do
-                                        put (simState' { simHistory = history' })
+                                        put (simState { simHistory = history' })
                                       (Just history', Just (Left _)) -> do
-                                        let simState'' = hPushCommand simState' Redo
-                                        put (simState'' { simHistory = history' })
+                                        hPushCommand Redo
+                                        modify (\simState' -> simState' { simHistory = history' })
                                       (Nothing, Just (Right sf0)) ->
-                                        put (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        put (simState { simHistory = (mkEmptyHistory sf0) })
 
     -- Discard all future after a specific frame
     Just (DiscardFuture n)    -> do simSendEvent    "CurrentFrameChanged"
-                                    case historyDiscardFuture (simHistory simState) n of
+                                    history <- getSimHistory
+                                    case historyDiscardFuture history n of
                                       (Just history', Nothing) -> do
-                                        put (simState' { simHistory = history' })
+                                        put (simState { simHistory = history' })
                                       (Just history', Just (Left _)) -> do
-                                        let simState'' = hPushCommand simState' Redo
-                                        put (simState'' { simHistory = history' })
+                                        hPushCommand Redo
+                                        modify (\simState' -> simState' { simHistory = history' })
                                       (Nothing, Just (Right sf0)) ->
-                                        put (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        put (simState { simHistory = (mkEmptyHistory sf0) })
 
     -- Jump one step back in the simulation
     Just SkipBack             -> do simSendEvent    "CurrentFrameChanged"
-                                    case historyBack (simHistory simState) of
+                                    history <- getSimHistory
+                                    case historyBack history of
                                       (Just history', Right _) -> do
-                                        let simState'' = hPushCommand simState' Redo
-                                        put (simState' { simHistory = history' })
+                                        hPushCommand Redo
+                                        modify (\simState' -> simState' { simHistory = history' })
                                       (Nothing, Left sf0) ->
-                                        put (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        put (simState { simHistory = (mkEmptyHistory sf0) })
 
     -- Re-execute the last step
     Just Redo                 -> -- put ((simBridge simState) (simPrefs simState) history commandQ' sense actuate sf lastInput)
-                                 do let (a0, mdt, sfc) = historyGetCurFrame (simHistory simState)
-                                        (sf', b0) = case (mdt, sfc) of
+                                 do (a0, mdt, sfc) <- historyGetCurFrame <$> getSimHistory
+                                    let (sf', b0) = case (mdt, sfc) of
                                                       (_,       Left sf0)  -> sfTF  sf0 a0
                                                       (Just dt, Right sf1) -> sfTF' sf1 dt a0
 
@@ -309,47 +312,52 @@ reactimateControl1 = do
                                     simSendEvent    "CurrentFrameChanged"
 
     -- Simulate one step forward
-    Just Step                 -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
-                                    let history' = historyRecordFrame1 (simHistory simState) (a', dt, sf')
+    Just Step                 -> do (a', dt, sf', b', last) <- step1
+                                    history <- getSimHistory
+                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
-                                    let simState'' = (simState' { simHistory = history' })
+                                    let simState'' = (simState { simHistory = history' })
                                     put simState''
                                     when last (modify simFinish)
 
     -- Simulate until a predicate on the input and output holds
-    Just (StepUntil p)        -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
-                                    let history' = historyRecordFrame1 (simHistory simState) (a', dt, sf')
+    Just (StepUntil p)        -> do (a', dt, sf', b', last) <- step1
+                                    history <- getSimHistory
+                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     cond <- checkCond p (Just dt) a' b'
-                                    let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
+                                    unless cond $ hPushCommand (StepUntil p)
 
-                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState { simHistory = history' })
                                     put simState''
 
                                     when last (modify simFinish)
 
     -- Skip steps until a predicate on the input and output holds
-    Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1 (simHistory simState)
-                                    let history' = historyRecordFrame1 (simHistory simState) (a', dt, sf')
+    Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1
+                                    history <- getSimHistory
+                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     cond <- checkCond p (Just dt) a' b'
-                                    let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
+                                    unless cond $ hPushCommand (SkipUntil p)
 
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
                                     last <- if cond then lift (simActuate (simOps simState) True b') else return False
 
-                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState { simHistory = history' })
                                     put simState''
                                     when last (modify simFinish)
 
     -- Simulate indefinitely
-    Just Play                 -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
-                                    let history' = historyRecordFrame1 (simHistory simState) (a', dt, sf')
+    Just Play                 -> do (a', dt, sf', b', last) <- step1
+                                    history <- getSimHistory
+                                    let history' = historyRecordFrame1 history (a', dt, sf')
 
-                                    let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
+                                    commandQ <- getSimCommands
+                                    unless (any stopPlayingCommand commandQ) $ hAppendCommand Play
 
-                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState { simHistory = history' })
                                     put simState''
                                     when last (modify simFinish)
 
@@ -357,47 +365,49 @@ reactimateControl1 = do
 
     Just (IOSense f)          -> do (dt, ma') <- lift $ simSense1 (simOps simState) False
                                     -- Unsafe fromJust use
-                                    let a' = fromMaybe (fromJust $ getLastInput (simHistory simState)) ma'
+                                    history <- getSimHistory
+                                    let a' = fromMaybe (fromJust $ getLastInput history) ma'
                                     when (dumpInput (simPrefs simState)) $ simPrint $ show a'
-                                    let history'' = historyReplaceInputDTimeAt (simHistory simState) f dt a'
-                                    put (simState' { simHistory = history'' })
+                                    let history'' = historyReplaceInputDTimeAt history f dt a'
+                                    put (simState { simHistory = history'' })
 
-    Just (GetInput f)         -> do let e = historyGetInput (simHistory simState) f
+    Just (GetInput f)         -> do e <- (`historyGetInput` f) <$> getSimHistory
                                     simSendMsg  (show e)
 
-    Just (SetInput f i)       -> do history'' <- case maybeRead i of
-                                                   Nothing -> return (simHistory simState)
-                                                   Just a  -> return (historyReplaceInputAt (simHistory simState) f a)
-                                    put (simState' { simHistory = history'' })
+    Just (SetInput f i)       -> do case maybeRead i of
+                                      Nothing -> return ()
+                                      Just a  -> do h' <- (\h -> historyReplaceInputAt h f a) <$> getSimHistory
+                                                    put (simState { simHistory = h' })
 
-    Just (GetGTime f)         -> do let e = historyGetGTime (simHistory simState) f
-                                    simSendMsg  (show e)
+    Just (GetGTime f)         -> do e <- (`historyGetGTime` f) <$> getSimHistory
+                                    simSendMsg (show e)
 
-    Just (GetDTime f)         -> do let e = historyGetDTime (simHistory simState) f
-                                    simSendMsg  (show e)
+    Just (GetDTime f)         -> do e <- (`historyGetDTime` f) <$> getSimHistory
+                                    simSendMsg (show e)
 
-    Just (SetDTime f dtS)     -> do history'' <- case maybeRead dtS of
-                                                   Nothing -> return (simHistory simState)
-                                                   Just dt -> return (historyReplaceDTimeAt (simHistory simState) f dt)
-                                    put (simState' { simHistory = history'' })
+    Just (SetDTime f dtS)     -> do case maybeRead dtS of
+                                      Nothing -> return ()
+                                      Just dt -> do h' <- (\h -> historyReplaceDTimeAt h f dt) <$> getSimHistory
+                                                    put (simState { simHistory = h' })
 
-    Just GetCurrentTime       -> do let num = historyGetCurrentTime (simHistory simState)
+    Just GetCurrentTime       -> do num <- historyGetCurrentTime <$> getSimHistory
                                     simSendMsg  ("CurrentTime " ++ show num)
 
-    Just GetCurrentFrame      -> do let num = historyGetCurrentFrame (simHistory simState)
+    Just GetCurrentFrame      -> do num <- historyGetCurrentFrame <$> getSimHistory
                                     simSendMsg  ("CurrentFrame " ++ show num)
 
     Just (SetPrefDumpInput b) -> do modify (\s -> s { simPrefs = (simPrefs s) { dumpInput = b } })
 
     Just GetPrefDumpInput     -> do simSendMsg ("DumpInput " ++ show (dumpInput (simPrefs simState)))
 
-    Just Ping                 -> do simSendMsg  "Pong"
-                                    simSendEvent  "PingSent"
+    Just Ping                 -> do simSendMsg "Pong"
+                                    simSendEvent "PingSent"
 
     other                     -> do lift $ putStrLn $ show other
   where
-    step1 history = do
+    step1 = do
       simState <- get
+      history  <- getSimHistory
       (dt, ma') <- lift $ simSense1 (simOps simState) False
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
           sf       = fromRight $ getCurSF history
@@ -408,8 +418,9 @@ reactimateControl1 = do
       simSendEvent     "CurrentFrameChanged"
       return (a', dt, sf', b', last)
 
-    skip1 history = do
+    skip1 = do
       simState <- get
+      history  <- getSimHistory
       (dt, ma') <- lift $ simSense1 (simOps simState) False
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
           sf       = fromRight $ getCurSF history
@@ -490,8 +501,21 @@ stopPlayingCommand (SetPrefDumpInput _)    = False
 stopPlayingCommand (GetPrefDumpInput)      = False
 stopPlayingCommand (Ping)                  = False
 
-hPushCommand :: SimState p a b -> Command p -> SimState p a b
-hPushCommand simState cmd = simState { simCommands = pushCommand (simCommands simState) cmd }
+hPushCommand :: Command p -> SimMonad p a b ()
+hPushCommand cmd = modify (\simState -> simState { simCommands = pushCommand (simCommands simState) cmd })
+
+hAppendCommand :: Command p -> SimMonad p a b ()
+hAppendCommand cmd = modify (\simState -> simState { simCommands = appendCommand (simCommands simState) cmd })
+
+-- | Obtain a command from the command queue, polling the communication
+--   bridge if the queue is empty.
+simGetCommand :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
+              => SimMonad p a b (Maybe (Command p))
+simGetCommand = do
+  simState <- get
+  (c, cms) <- lift $ getCommand (simBridge simState) (simCommands simState)
+  put (simState { simCommands = cms })
+  return c
 
 -- ** Command Queue
 
