@@ -249,10 +249,10 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case historyBack history of
-                                      (Just history', Left _) -> do
+                                      (Just history', Right _) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
-                                      (Nothing, Right sf0) ->
+                                      (Nothing, Left sf0) ->
                                         reactimateControl0 bridge prefs commandQ' simOps sf0
 
     -- Re-execute the last step
@@ -485,109 +485,113 @@ appendCommand cs c = cs ++ [c]
 
 -- * Execution History
 data History a b = History
-  { getHistory   :: ((a, SF a b), [(a, DTime, SF' a b)])
+  { getHistory   :: (Maybe (a, SF a b), [(a, DTime, SF' a b)])
   , getCurSF     :: Either (SF a b) (SF' a b)
   , getLastInput :: Maybe a
   }
 
 historyReplaceInputAt history f a =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       as              = a0 : map (\(a,_,_) -> a) ps
   in if length as >= f
        then history
        else if f == 0
-              then History { getHistory = ((a, sf0), ps) }
-              else History { getHistory = ((a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps) }
+              then History { getHistory = (Just (a, sf0), ps) }
+              else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,dt,sf) -> (a, dt, sf)) ps) }
 
 historyReplaceDTimeAt history f dt =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
   in if length dts >= f
        then history
        else if f == 0
-              then History { getHistory = ((a0, sf0), ps) }
-              else History { getHistory = ((a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps) }
+              then History { getHistory = (Just (a0, sf0), ps) }
+              else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(a,_,sf) -> (a, dt, sf)) ps) }
 
 historyReplaceInputDTimeAt history f dt a =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       as              = a0 : map (\(a,_,_) -> a) ps
   in if length as >= f
        then history
        else if f == 0
-              then History { getHistory = ((a, sf0), ps) }
-              else History { getHistory = ((a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
+              then History { getHistory = (Just (a, sf0), ps) }
+              else History { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
 
 historyGetGTime history f =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
       e               = if length dts >= f then Nothing else Just (sum (take f dts))
   in e
 
 historyGetDTime history f =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
       e               = if length dts >= f then Nothing else Just (dts !! f)
   in e
 
 historyGetInput history f =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       as = a0 : map (\(a,_,_) -> a) ps
       e  = if length as >= f then Nothing else Just (as !! f)
   in e
 
 historyGetCurrentTime history =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       num             = sum $ map (\(_,dt,_) -> dt) ps
   in num
 
 historyGetCurrentFrame history =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
       num             = length ps
   in num
 
-mkHistory (a0, sf0) sf' a = History ((a0, sf0),[]) (Right sf') (Just a)
+mkHistory (a0, sf0) sf' a = History (Just (a0, sf0),[]) (Right sf') (Just a)
 
 historyRecordFrame1 history (a', dt, sf') =
-  let ((a0, sf0), ps) = getHistory history
-  in History ((a0, sf0), (a', dt, sf'):ps) (Right sf') (Just a')
+  let (Just (a0, sf0), ps) = getHistory history
+  in History (Just (a0, sf0), (a', dt, sf'):ps) (Right sf') (Just a')
 
 historyGetNumFrames history =
-  let ((a0, sf0), ps) = getHistory history
+  let (Just (a0, sf0), ps) = getHistory history
   in length ps
 
 historyGetCurFrame history =
   case getHistory history of
-    ((a0, sf0), (an, dt, sfn):prevs) -> (an, Just dt, Right sfn)
-    ((a0, sf0), [])                  -> (a0, Nothing, Left  sf0)
+    (Just (a0, sf0), (an, dt, sfn):prevs) -> (an, Just dt, Right sfn)
+    (Just (a0, sf0), [])                  -> (a0, Nothing, Left  sf0)
 
 historyBack history =
   case getHistory history of
-    ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Left (sf', lastInput))
-    ((a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History ((a0, sf0), [])    (Right sf') (Just a0),        Left (sf', a0))
-    ((a0, sf0), _:[])                                        -> (Nothing, Right sf0)
-    ((a0, sf0), [])                                          -> (Nothing, Right sf0)
+    (Just (a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History (Just (a0, sf0), prevs) (Right sf') (Just lastInput), Right (sf', lastInput))
+    (Just (a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History (Just (a0, sf0), [])    (Right sf') (Just a0),        Right (sf', a0))
+    (Just (a0, sf0), _:[])                                        -> (Just $ History (Just (a0, sf0), [])    (Left sf0)  Nothing,          Left sf0)
+    (Just (a0, sf0), [])                                          -> (Just $ History (Nothing, [])           (Left sf0)  Nothing,          Left sf0)
+    -- TODO: undefined
+    -- (Nothing, [])                                                 -> (Just $ history,                                                      getCurSF history)
 
 historyJumpTo :: History a b -> Int -> (Maybe (History a b), Maybe (Either (SF' a b, a) (SF a b)))
 historyJumpTo history n =
-  let ((a0, sf0), ps) = getHistory history
-  in if (length ps + 1 > n)
-       then if n > 0
-              then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
-                   in (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
-              else (Nothing, Just $ Right sf0)
-       else (Just history, Nothing)
+  case getHistory history of
+    (Nothing,_)          -> (Just history, Nothing)
+    (Just (a0, sf0), ps) -> 
+      if (length ps + 1 > n)
+        then if n > 0
+               then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
+                    in (Just $ History (Just (a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
+               else (Nothing, Just $ Right sf0)
+        else (Just history, Nothing)
 
 historyDiscardFuture :: History a b -> Int -> (Maybe (History a b), Maybe (Either (SF' a b, a) (SF a b)))
 historyDiscardFuture history n =
-  let ((a0, sf0), ps) = getHistory history
-  in if (length ps + 1 > n)
-       then if n > 0
-              then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
-                   in (Just $ History ((a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
-              else (Nothing, Just $ Right sf0)
-       else (Just history, Nothing)
-
-takeLast n l = reverse $ take n $ reverse l
+  case getHistory history of
+    (Nothing,_)          -> (Just history, Nothing)
+    (Just (a0, sf0), ps) -> 
+      if (length ps + 1 > n)
+        then if n > 0
+               then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
+                    in (Just $ History (Just (a0, sf0), prevs) (Right sf') (Just lastInput), Just $ Left (sf', lastInput))
+               else (Nothing, Just $ Right sf0)
+        else (Just history, Nothing)
 
 
 -- * Simulation preferences
@@ -619,13 +623,21 @@ class Read p => Pred p i o | p -> i, p -> o where
 
 -- ** Utility functions
 
-maybeRead :: Read a => String -> Maybe a
-maybeRead = fmap fst . listToMaybe . reads
+-- *** Lists
+
+takeLast n l = reverse $ take n $ reverse l
 
 appAt :: Int -> (a -> a) -> [a] -> [a]
 appAt _ f [] = []
 appAt 0 f (x:xs) = f x : xs
 appAt n f (x:xs) = x : appAt (n-1) f xs
+
+-- *** Maybe
+
+maybeRead :: Read a => String -> Maybe a
+maybeRead = fmap fst . listToMaybe . reads
+
+--- *** Either
 
 -- TODO: Remove
 fromLeft :: Either a b -> a
