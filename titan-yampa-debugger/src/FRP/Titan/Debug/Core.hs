@@ -56,7 +56,7 @@ reactimateControl :: forall p a b
                   -> IO ()
 reactimateControl bridge prefs cmds init sense actuate sf =
   let history = mkEmptyHistory sf
-  in dispatchCommand (SimState bridge prefs history cmds (init, sense, actuate))
+  in run (SimState bridge prefs history cmds (init, sense, actuate))
 
 data SimState p a b = SimState
   { simBridge   :: ExternalBridge
@@ -73,9 +73,14 @@ data SimState p a b = SimState
 -- =                    -> [Command p]                    -- ^ Debug: List of commands to execute
 -- =                    -> SimOps a b                     -- ^ FRP:   Simulation (sensing, actuating) actions
 
+run :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
+    => SimState p a b -> IO ()
+run s = do
+  (s', last) <- dispatchCommand s
+  unless last (run s')
 
 dispatchCommand :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                => SimState p a b -> IO ()
+                => SimState p a b -> IO (SimState p a b, Bool)
 dispatchCommand simState = 
   if (historyIsRunning (simHistory simState))
     then reactimateControl1 simState
@@ -83,7 +88,7 @@ dispatchCommand simState =
 
 -- | Start a Yampa program with interactive debugging enabled.
 reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                   => SimState p a b -> IO () 
+                   => SimState p a b -> IO (SimState p a b, Bool)
 reactimateControl0 simState = do
   (command,commandQ') <- getCommand (simBridge simState) (simCommands simState)
   let simState' = simState { simCommands = commandQ' }
@@ -91,14 +96,14 @@ reactimateControl0 simState = do
   -- Process one command and loop
   case command of
 
-    Nothing                  -> dispatchCommand simState'
-    Just Exit                -> return ()
+    Nothing                  -> return (simState', True)
+    Just Exit                -> return (simState', False)
 
     -- Jump one step back in the simulation
-    Just SkipBack            -> dispatchCommand simState'
+    Just SkipBack            -> return (simState', True)
 
     -- Re-execute the last step
-    Just Redo                -> dispatchCommand simState'
+    Just Redo                -> return (simState', True)
 
     -- TODO: Skip cycle while sensing the input
     Just SkipSense           -> do a0 <- simSense (simOps simState)
@@ -109,11 +114,11 @@ reactimateControl0 simState = do
 
                                    ebSendEvent (simBridge simState) "CurrentFrameChanged"
 
-                                   dispatchCommand (simState' { simOps      =  (myInit, simSense1 (simOps simState), simActuate (simOps simState)) })
+                                   return ( (simState' { simOps      =  (myInit, simSense1 (simOps simState), simActuate (simOps simState)) }),True)
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do ebSendEvent (simBridge simState) "CurrentFrameChanged"
-                                   dispatchCommand simState'
+                                   return ( simState',True)
 
     -- Simulate indefinitely
     Just Play                 -> do (a0, sf', _) <- step0
@@ -122,15 +127,15 @@ reactimateControl0 simState = do
                                                        else appendCommand commandQ' Play
                                         sf         = fromLeft (getCurSF (simHistory simState))
                                         history'   = mkHistory (a0, sf) sf' a0
-                                    dispatchCommand (simState' { simHistory = history', simCommands = commandQ'' })
+                                    return ( (simState' { simHistory = history', simCommands = commandQ'' }),True)
 
-    Just Pause                -> dispatchCommand simState'
+    Just Pause                -> return ( simState',True)
 
     -- Simulate one step forward
     Just Step                 -> do (a0, sf', _) <- step0
                                     let history'   = mkHistory (a0, sf) sf' a0
                                         sf         = fromLeft (getCurSF (simHistory simState))
-                                    dispatchCommand (simState' { simHistory = history' })
+                                    return ( (simState' { simHistory = history' }),True)
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a0, sf', b0) <- step0
@@ -141,7 +146,7 @@ reactimateControl0 simState = do
 
                                     -- Continue
                                     -- TODO Potential bug here: it could simulate too much!
-                                    dispatchCommand (simState' { simHistory = history' })
+                                    return ( (simState' { simHistory = history' }),True)
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a0, sf', b0) <- skip0
@@ -151,33 +156,33 @@ reactimateControl0 simState = do
                                         sf         = fromLeft (getCurSF (simHistory simState))
 
                                     -- TODO Potential bug here: it could simulate too much!
-                                    dispatchCommand (simState' { simHistory = history', simCommands = commandQ'' })
+                                    return ( (simState' { simHistory = history', simCommands = commandQ'' }),True)
 
     Just (GetInput _)         -> do ebSendMsg (simBridge simState) ("Nothing")
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just GetCurrentTime       -> do ebSendMsg (simBridge simState) ("CurrentTime " ++ show 0)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just GetCurrentFrame      -> do ebSendMsg (simBridge simState) ("CurrentFrame " ++ show 0)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory    -> do ebPrint (simBridge simState) ("CurrentHistory 0")
-                                   dispatchCommand simState'
+                                   return ( simState',True)
 
     Just (SetPrefDumpInput b) -> do let prefs' = (simPrefs simState) { dumpInput = b }
-                                    dispatchCommand (simState' { simPrefs = prefs' })
+                                    return ( (simState' { simPrefs = prefs' }),True)
 
     Just GetPrefDumpInput     -> do print (dumpInput (simPrefs simState))
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just Ping                 -> do ebSendMsg (simBridge simState) "Pong"
                                     ebSendEvent (simBridge simState)   "PingSent"
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just c                    -> do ebSendEvent (simBridge simState) ("Got " ++ show c ++ ", dunno what to do with it")
-                                    dispatchCommand simState'
+                                    return ( simState',True)
   where
     -- step0 :: IO (a, SF' a b, b)
     step0 = do
@@ -230,55 +235,55 @@ simActuate (_, _, op) = op
 
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
-                   => SimState p a b -> IO ()
+                   => SimState p a b -> IO (SimState p a b, Bool)
 reactimateControl1 simState = do
   (command,commandQ') <- getCommand (simBridge simState) (simCommands simState)
   let simState' = simState { simCommands = commandQ' }
 
   case command of
 
-    Nothing   -> dispatchCommand simState'
+    Nothing   -> return (simState', True)
 
-    Just Exit -> return ()
+    Just Exit -> return (simState', False)
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory     -> do let num = historyGetNumFrames (simHistory simState)
                                     ebPrint (simBridge simState) ("CurrentHistory " ++ show num)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     -- Jump to a specific frame
     Just (JumpTo n)           -> do ebSendEvent (simBridge simState)   "CurrentFrameChanged"
                                     case historyJumpTo (simHistory simState) n of
                                       (Just history', Nothing) -> do
-                                        dispatchCommand (simState' { simHistory = history' })
+                                        return ( (simState' { simHistory = history' }),True)
                                       (Just history', Just (Left _)) -> do
                                         let simState'' = hPushCommand simState' Redo
-                                        dispatchCommand (simState'' { simHistory = history' })
+                                        return ( (simState'' { simHistory = history' }),True)
                                       (Nothing, Just (Right sf0)) ->
-                                        dispatchCommand (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        return ( (simState' { simHistory = (mkEmptyHistory sf0) }),True)
 
     -- Discard all future after a specific frame
     Just (DiscardFuture n)    -> do ebSendEvent (simBridge simState)   "CurrentFrameChanged"
                                     case historyDiscardFuture (simHistory simState) n of
                                       (Just history', Nothing) -> do
-                                        dispatchCommand (simState' { simHistory = history' })
+                                        return ( (simState' { simHistory = history' }),True)
                                       (Just history', Just (Left _)) -> do
                                         let simState'' = hPushCommand simState' Redo
-                                        dispatchCommand (simState'' { simHistory = history' })
+                                        return ( (simState'' { simHistory = history' }),True)
                                       (Nothing, Just (Right sf0)) ->
-                                        dispatchCommand (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        return ( (simState' { simHistory = (mkEmptyHistory sf0) }),True)
 
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent (simBridge simState)   "CurrentFrameChanged"
                                     case historyBack (simHistory simState) of
                                       (Just history', Right _) -> do
                                         let simState'' = hPushCommand simState' Redo
-                                        dispatchCommand (simState' { simHistory = history' })
+                                        return ( (simState' { simHistory = history' }),True)
                                       (Nothing, Left sf0) ->
-                                        dispatchCommand (simState' { simHistory = (mkEmptyHistory sf0) })
+                                        return ( (simState' { simHistory = (mkEmptyHistory sf0) }),True)
 
     -- Re-execute the last step
-    Just Redo                 -> -- dispatchCommand (simBridge simState) (simPrefs simState) history commandQ' sense actuate sf lastInput
+    Just Redo                 -> -- return ( (simBridge simState) (simPrefs simState) history commandQ' sense actuate sf lastInput,True)
                                  do let (a0, mdt, sfc) = historyGetCurFrame (simHistory simState)
                                         (sf', b0) = case (mdt, sfc) of
                                                       (_,       Left sf0)  -> sfTF  sf0 a0
@@ -286,8 +291,7 @@ reactimateControl1 simState = do
 
                                     when (dumpInput (simPrefs simState)) $ print a0
                                     last <- simActuate (simOps simState) True b0
-                                    unless last $
-                                      dispatchCommand simState'
+                                    return (simState', not last)
 
 
     -- TODO: Skip cycle while sensing the input
@@ -296,14 +300,14 @@ reactimateControl1 simState = do
                                     when (dumpInput (simPrefs simState)) $ print a
                                     ebSendEvent (simBridge simState)   "CurrentFrameChanged"
 
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     -- Simulate one step forward
     Just Step                 -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
                                     let history' = historyRecordFrame1 (simHistory simState) (a', dt, sf')
 
-                                    unless last $
-                                      dispatchCommand (simState' { simHistory = history' })
+                                    let simState'' = (simState' { simHistory = history' })
+                                    return (simState'', not last)
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
@@ -312,8 +316,8 @@ reactimateControl1 simState = do
                                     cond <- checkCond p (Just dt) a' b'
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
 
-                                    unless last $
-                                      dispatchCommand (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    return (simState'', not last)
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1 (simHistory simState)
@@ -326,8 +330,8 @@ reactimateControl1 simState = do
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
                                     last <- if cond then simActuate (simOps simState) True b' else return False
 
-                                    unless last $
-                                      dispatchCommand (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    return (simState'', not last)
 
     -- Simulate indefinitely
     Just Play                 -> do (a', dt, sf', b', last) <- step1 (simHistory simState)
@@ -335,59 +339,60 @@ reactimateControl1 simState = do
 
                                     let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
-                                    unless last $
-                                      dispatchCommand (simState' { simHistory = history', simCommands = commandQ'' })
+                                    let simState'' = (simState' { simHistory = history', simCommands = commandQ'' })
+                                    return (simState'', not last)
 
-    Just Pause                -> dispatchCommand simState'
+    Just Pause                -> return ( simState',True)
 
     Just (IOSense f)          -> do (dt, ma') <- simSense1 (simOps simState) False
                                     -- Unsafe fromJust use
                                     let a' = fromMaybe (fromJust $ getLastInput (simHistory simState)) ma'
                                     when (dumpInput (simPrefs simState)) $ print a'
                                     let history'' = historyReplaceInputDTimeAt (simHistory simState) f dt a'
-                                    dispatchCommand (simState' { simHistory = history'' })
+                                    return ( (simState' { simHistory = history'' }),True)
 
     Just (GetInput f)         -> do let e = historyGetInput (simHistory simState) f
                                     ebSendMsg (simBridge simState) (show e)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just (SetInput f i)       -> do history'' <- case maybeRead i of
                                                    Nothing -> return (simHistory simState)
                                                    Just a  -> return (historyReplaceInputAt (simHistory simState) f a)
-                                    dispatchCommand (simState' { simHistory = history'' })
+                                    return ( (simState' { simHistory = history'' }),True)
 
     Just (GetGTime f)         -> do let e = historyGetGTime (simHistory simState) f
                                     ebSendMsg (simBridge simState) (show e)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just (GetDTime f)         -> do let e = historyGetDTime (simHistory simState) f
                                     ebSendMsg (simBridge simState) (show e)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just (SetDTime f dtS)     -> do history'' <- case maybeRead dtS of
                                                    Nothing -> return (simHistory simState)
                                                    Just dt -> return (historyReplaceDTimeAt (simHistory simState) f dt)
-                                    dispatchCommand (simState' { simHistory = history'' })
+                                    return ( (simState' { simHistory = history'' }),True)
 
     Just GetCurrentTime       -> do let num = historyGetCurrentTime (simHistory simState)
                                     ebSendMsg (simBridge simState) ("CurrentTime " ++ show num)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just GetCurrentFrame      -> do let num = historyGetCurrentFrame (simHistory simState)
                                     ebSendMsg (simBridge simState) ("CurrentFrame " ++ show num)
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just (SetPrefDumpInput b) -> do let prefs' = (simPrefs simState) { dumpInput = b }
-                                    dispatchCommand (simState' { simPrefs = prefs' })
+                                    return ( (simState' { simPrefs = prefs' }),True)
 
     Just GetPrefDumpInput     -> do print (dumpInput (simPrefs simState))
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
     Just Ping                 -> do ebSendMsg (simBridge simState) "Pong"
                                     ebSendEvent (simBridge simState) "PingSent"
-                                    dispatchCommand simState'
+                                    return ( simState',True)
 
-    other                     -> putStrLn $ show other
+    other                     -> do putStrLn $ show other
+                                    return (simState', True)
   where
     step1 history = do
       (dt, ma') <- simSense1 (simOps simState) False
