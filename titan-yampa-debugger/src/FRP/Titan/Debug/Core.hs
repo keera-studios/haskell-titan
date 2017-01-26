@@ -82,7 +82,7 @@ reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a 
                    -- -> SimOps a b                     -- ^ FRP:   Simulation (sensing, actuating) actions
                    -- -> IO ()
 reactimateControl0 simState = do
-  let SimState _ _ _ _ simOps = simState
+  let SimState _ _ _ _ _ = simState
   (command,commandQ') <- getCommand (simBridge simState) (simCommands simState)
   let simState' = simState { simCommands = commandQ' }
 
@@ -99,15 +99,15 @@ reactimateControl0 simState = do
     Just Redo                -> reactimateControl0 simState'
 
     -- TODO: Skip cycle while sensing the input
-    Just SkipSense           -> do a0 <- simSense simOps
+    Just SkipSense           -> do a0 <- simSense (simOps simState)
                                    when (dumpInput (simPrefs simState)) $ print a0
 
-                                   let myInit = do (_,ma') <- simSense1 simOps False
+                                   let myInit = do (_,ma') <- simSense1 (simOps simState) False
                                                    return $ fromMaybe a0 ma'
 
                                    ebSendEvent (simBridge simState) "CurrentFrameChanged"
 
-                                   reactimateControl0 (simState' { simOps      =  (myInit, simSense1 simOps, simActuate simOps) })
+                                   reactimateControl0 (simState' { simOps      =  (myInit, simSense1 (simOps simState), simActuate (simOps simState)) })
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do ebSendEvent (simBridge simState) "CurrentFrameChanged"
@@ -230,7 +230,7 @@ simActuate (_, _, op) = op
 reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => SimState p a b -> IO ()
 reactimateControl1 simState = do
-  let SimState _ _ _ _ simOps = simState
+  let SimState _ _ _ _ _ = simState
   (command,commandQ') <- getCommand (simBridge simState) (simCommands simState)
   let simState' = simState { simCommands = commandQ' }
 
@@ -284,14 +284,14 @@ reactimateControl1 simState = do
                                                       (Just dt, Right sf1) -> sfTF' sf1 dt a0
 
                                     when (dumpInput (simPrefs simState)) $ print a0
-                                    last <- simActuate simOps True b0
+                                    last <- simActuate (simOps simState) True b0
                                     unless last $
                                       reactimateControl1 simState'
 
 
     -- TODO: Skip cycle while sensing the input
     -- Should the input be used as new last input?
-    Just SkipSense            -> do (_,a)  <- simSense1 simOps False
+    Just SkipSense            -> do (_,a)  <- simSense1 (simOps simState) False
                                     when (dumpInput (simPrefs simState)) $ print a
                                     ebSendEvent (simBridge simState)   "CurrentFrameChanged"
 
@@ -323,7 +323,7 @@ reactimateControl1 simState = do
 
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
-                                    last <- if cond then simActuate simOps True b' else return False
+                                    last <- if cond then simActuate (simOps simState) True b' else return False
 
                                     unless last $
                                       reactimateControl1 (simState' { simHistory = history', simCommands = commandQ'' })
@@ -339,7 +339,7 @@ reactimateControl1 simState = do
 
     Just Pause                -> reactimateControl1 simState'
 
-    Just (IOSense f)          -> do (dt, ma') <- simSense1 simOps False
+    Just (IOSense f)          -> do (dt, ma') <- simSense1 (simOps simState) False
                                     -- Unsafe fromJust use
                                     let a' = fromMaybe (fromJust $ getLastInput (simHistory simState)) ma'
                                     when (dumpInput (simPrefs simState)) $ print a'
