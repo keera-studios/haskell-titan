@@ -54,31 +54,32 @@ reactimateControl :: forall p a b
                   -> SF a b                         -- ^ FRP:   Signal Function that defines the program
                   -> IO ()
 reactimateControl bridge prefs cmds init sense actuate sf =
-  reactimateControl0 bridge prefs cmds (init, sense, actuate) sf
+  let history = mkEmptyHistory sf
+  in reactimateControl0 bridge prefs history cmds (init, sense, actuate)
 
 -- | Start a Yampa program with interactive debugging enabled.
 reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
                    -> Preferences                    -- ^ Debug: Debugging preferences
+                   -> History a b
                    -> [Command p]                    -- ^ Debug: List of commands to execute
                    -> SimOps a b                     -- ^ FRP:   Simulation (sensing, actuating) actions
-                   -> SF a b                         -- ^ FRP:   Signal Function that defines the program
                    -> IO ()
-reactimateControl0 bridge prefs commandQ simOps sf = do
+reactimateControl0 bridge prefs history commandQ simOps = do
 
   (command,commandQ') <- getCommand bridge commandQ
 
   -- Process one command and loop
   case command of
 
-    Nothing                  -> reactimateControl0 bridge prefs commandQ' simOps sf
+    Nothing                  -> reactimateControl0 bridge prefs history commandQ' simOps
     Just Exit                -> return ()
 
     -- Jump one step back in the simulation
-    Just SkipBack            -> reactimateControl0 bridge prefs commandQ' simOps sf
+    Just SkipBack            -> reactimateControl0 bridge prefs history commandQ' simOps
 
     -- Re-execute the last step
-    Just Redo                -> reactimateControl0 bridge prefs commandQ' simOps sf
+    Just Redo                -> reactimateControl0 bridge prefs history commandQ' simOps
 
     -- TODO: Skip cycle while sensing the input
     Just SkipSense           -> do a0 <- simSense simOps
@@ -89,71 +90,75 @@ reactimateControl0 bridge prefs commandQ simOps sf = do
 
                                    ebSendEvent bridge "CurrentFrameChanged"
 
-                                   reactimateControl0 bridge prefs commandQ' (myInit, simSense1 simOps, simActuate simOps) sf
+                                   reactimateControl0 bridge prefs history commandQ' (myInit, simSense1 simOps, simActuate simOps)
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do ebSendEvent bridge "CurrentFrameChanged"
-                                   reactimateControl0 bridge prefs commandQ' simOps sf
+                                   reactimateControl0 bridge prefs history commandQ' simOps
 
     -- Simulate indefinitely
     Just Play                 -> do (a0, sf', _) <- step0
                                     let commandQ'' = if any stopPlayingCommand commandQ'
                                                        then commandQ'
                                                        else appendCommand commandQ' Play
-                                        history    = mkHistory (a0, sf) sf' a0
-                                    reactimateControl1 bridge prefs history (commandQ'') simOps
+                                        sf         = fromLeft (getCurSF history)
+                                        history'   = mkHistory (a0, sf) sf' a0
+                                    reactimateControl1 bridge prefs history' (commandQ'') simOps
 
-    Just Pause                -> reactimateControl0 bridge prefs commandQ' simOps sf
+    Just Pause                -> reactimateControl0 bridge prefs history commandQ' simOps
 
     -- Simulate one step forward
     Just Step                 -> do (a0, sf', _) <- step0
-                                    let history    = mkHistory (a0, sf) sf' a0
-                                    reactimateControl1 bridge prefs history commandQ' simOps
+                                    let history'   = mkHistory (a0, sf) sf' a0
+                                        sf         = fromLeft (getCurSF history)
+                                    reactimateControl1 bridge prefs history' commandQ' simOps
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a0, sf', b0) <- step0
                                     cond          <- checkCond p Nothing a0 b0
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
-                                    let history    = mkHistory (a0, sf) sf' a0
+                                    let history'   = mkHistory (a0, sf) sf' a0
+                                        sf         = fromLeft (getCurSF history)
 
                                     -- Continue
                                     -- TODO Potential bug here: it could simulate too much!
-                                    reactimateControl1 bridge prefs history commandQ'' simOps
+                                    reactimateControl1 bridge prefs history' commandQ'' simOps
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a0, sf', b0) <- skip0
                                     cond          <- checkCond p Nothing a0 b0
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (SkipUntil p)
-                                    let history    = mkHistory (a0, sf) sf' a0
+                                    let history'   = mkHistory (a0, sf) sf' a0
+                                        sf         = fromLeft (getCurSF history)
 
                                     -- TODO Potential bug here: it could simulate too much!
-                                    reactimateControl1 bridge prefs history commandQ'' simOps
+                                    reactimateControl1 bridge prefs history' commandQ'' simOps
 
     Just (GetInput _)         -> do ebSendMsg bridge ("Nothing")
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
 
     Just GetCurrentTime       -> do ebSendMsg bridge ("CurrentTime " ++ show 0)
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
 
     Just GetCurrentFrame      -> do ebSendMsg bridge ("CurrentFrame " ++ show 0)
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory    -> do ebPrint bridge ("CurrentHistory 0")
-                                   reactimateControl0 bridge prefs commandQ' simOps sf
+                                   reactimateControl0 bridge prefs history commandQ' simOps
 
     Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl0 bridge prefs' commandQ' simOps sf
+                                    reactimateControl0 bridge prefs' history commandQ' simOps
 
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
 
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
 
     Just c                    -> do ebSendEvent bridge ("Got " ++ show c ++ ", dunno what to do with it")
-                                    reactimateControl0 bridge prefs commandQ' simOps sf
+                                    reactimateControl0 bridge prefs history commandQ' simOps
   where
     -- step0 :: IO (a, SF' a b, b)
     step0 = do
@@ -161,7 +166,8 @@ reactimateControl0 bridge prefs commandQ simOps sf = do
       a0 <- simSense simOps
       when (dumpInput prefs) $ print a0
 
-      let tf0  = sfTF sf
+      let sf       = fromLeft (getCurSF history)
+          tf0      = sfTF sf
           (sf',b0) = tf0 a0
       _ <- simActuate simOps True b0
       ebSendEvent bridge "CurrentFrameChanged"
@@ -172,7 +178,8 @@ reactimateControl0 bridge prefs commandQ simOps sf = do
       a0 <- simSense simOps
       when (dumpInput prefs) $ print a0
 
-      let tf0  = sfTF sf
+      let sf       = fromLeft (getCurSF history)
+          tf0  = sfTF sf
           (sf',b0) = tf0 a0
       ebSendEvent bridge "CurrentFrameChanged"
       return (a0, sf', b0)
@@ -233,7 +240,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Just (Right sf0)) ->
-                                        reactimateControl0 bridge prefs commandQ' simOps sf0
+                                        reactimateControl0 bridge prefs (mkEmptyHistory sf0) commandQ' simOps
 
     -- Discard all future after a specific frame
     Just (DiscardFuture n)    -> do ebSendEvent bridge   "CurrentFrameChanged"
@@ -244,7 +251,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Just (Right sf0)) ->
-                                        reactimateControl0 bridge prefs commandQ' simOps sf0
+                                        reactimateControl0 bridge prefs (mkEmptyHistory sf0) commandQ' simOps
 
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
@@ -253,7 +260,7 @@ reactimateControl1 bridge prefs history commandQ simOps  = do
                                         let commandQ'' = pushCommand commandQ' Redo
                                         reactimateControl1 bridge prefs history' commandQ'' simOps
                                       (Nothing, Left sf0) ->
-                                        reactimateControl0 bridge prefs commandQ' simOps sf0
+                                        reactimateControl0 bridge prefs (mkEmptyHistory sf0) commandQ' simOps
 
     -- Re-execute the last step
     Just Redo                 -> -- reactimateControl1 bridge prefs history commandQ' sense actuate sf lastInput
@@ -545,6 +552,7 @@ historyGetCurrentFrame history =
       num             = length ps
   in num
 
+mkEmptyHistory sf = History (Nothing,[]) (Left  sf) Nothing
 mkHistory (a0, sf0) sf' a = History (Just (a0, sf0),[]) (Right sf') (Just a)
 
 historyRecordFrame1 history (a', dt, sf') =
