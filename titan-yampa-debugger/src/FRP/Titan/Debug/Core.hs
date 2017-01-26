@@ -316,11 +316,16 @@ simSendMsg msg = get >>= \simState -> lift $ ebSendMsg (simBridge simState) msg
 simSendEvent :: String -> SimMonad p a b ()
 simSendEvent msg = get >>= \simState -> lift $ ebSendEvent (simBridge simState) msg
 
-type SimOps a b = (IO a, Bool -> IO (DTime, Maybe a), Bool -> b -> IO Bool)
+-- | SimOps represents the sensing and consumption actions used to animate/reactimate
+--   a Yampa program:
+--
+--   * Initial sensing action
+--
+--   * Continued sensing action
+--
+--   * Rendering/consumption action
 
-  -- IO a                                      -- ^ FRP:   Initial sensing action
-  -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
-  -- (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
+type SimOps a b = (IO a, Bool -> IO (DTime, Maybe a), Bool -> b -> IO Bool)
 
 simSense :: SimMonad p a b a
 simSense = get >>= \s -> let (op, _, _) = simOps s in lift op
