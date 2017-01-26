@@ -280,7 +280,7 @@ conditionVMFrameChanged cenv = do
   n <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
   putStrLn $ "Received " ++ show n
   case maybe [] words n of
-    ["CurrentTime", m] -> entrySetText entryGT m
+    ["CurrentTime", m] -> postGUIAsync $ entrySetText entryGT m
     _                  -> return ()
 
 conditionVMDisconnect cenv =
