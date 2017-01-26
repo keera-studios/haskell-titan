@@ -179,6 +179,9 @@ reactimateDebugStep = do
                                       
                                            simModifyHistory (\h -> historyReplaceInputAt h f a)
 
+    Just (GetTrace)              -> do simTrace <- simGetTrace
+                                       simSendMsg (show simTrace)
+
     Just (GetInput f)            -> do running <- (historyIsRunning . simHistory) <$> get
                                        if running
                                          then do e <- (`historyGetInput` f) <$> getSimHistory
@@ -357,10 +360,16 @@ simGetCommand = do
 
 simReplaceHistory :: (a, [(DTime, a)]) -> SimMonad p a b ()
 simReplaceHistory (a0, as) = do
-  history <- getSimHistory
   sf0     <- historyGetSF0
-  let history' = History (Just (a0, Nothing),map (\(dt,a) -> (a, dt, Nothing)) as) (-1) (Left sf0) Nothing
-  modify $ \simState -> simState { simHistory = history' }
+  let history = History (Just (a0, Nothing),map (\(dt,a) -> (a, dt, Nothing)) as) (-1) (Left sf0) Nothing
+  modify $ \simState -> simState { simHistory = history }
+
+simGetTrace :: SimMonad p a b (Maybe (a, [(DTime, a)]))
+simGetTrace = do
+  history <- getSimHistory
+  case getHistory history of
+    (Nothing , _) -> return Nothing
+    (Just (a0,_), as) -> return (Just (a0, map (\(a,dt,_) -> (dt, a)) as))
 
 historyGetSF0 :: SimMonad p a b (SF a b)
 historyGetSF0 = do
@@ -408,6 +417,7 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | SetDTime Int String        -- ^ Info: Change dtime at a particular frame
                | GetCurrentFrame            -- ^ Info: Obtain the current frame
                | GetCurrentTime             -- ^ Info: Obtain the current time
+               | GetTrace                   -- ^ Info: Obtain input at a particular frame
                | SummarizeHistory           -- ^ Info: Print summary information about the history
                | SetPrefDumpInput Bool      -- ^ Preferences: Alter simulation preferences
                | GetPrefDumpInput           -- ^ Preferences: Obtain simulation preferences
@@ -439,6 +449,7 @@ stopPlayingCommand (GetDTime _ )           = False
 stopPlayingCommand (SetDTime _ _)          = False
 stopPlayingCommand (GetCurrentFrame)       = False
 stopPlayingCommand (GetCurrentTime)        = False
+stopPlayingCommand (GetTrace)              = False
 stopPlayingCommand (SummarizeHistory)      = False
 stopPlayingCommand (SetPrefDumpInput _)    = False
 stopPlayingCommand (GetPrefDumpInput)      = False
