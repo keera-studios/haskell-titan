@@ -155,6 +155,10 @@ reactimateDebugStep = do
 
     Just Pause                   -> return ()
 
+    Just DeleteTrace             -> do simEmptyHistory
+                                       simSendEvent "CurrentFrameChanged"
+                                       simSendEvent "HistoryChanged"
+ 
     Just (LoadTraceFromString s) -> do case maybeRead s of
                                          Nothing -> return ()
                                          Just s  -> simReplaceHistory s
@@ -232,7 +236,8 @@ reactimateDebugStep = do
           (sf',b0) = tf0 a0
       _ <- simActuate  True b0
       -- TODO Potential bug here: it could simulate too much!
-      simSendEvent   "CurrentFrameChanged"
+      simSendEvent "CurrentFrameChanged"
+      simSendEvent "HistoryChanged"
       simModifyHistory (const (mkHistory (a0, sf) sf' a0))
       -- return (a0, sf', b0)
       return (a0, b0)
@@ -248,7 +253,8 @@ reactimateDebugStep = do
           tf0  = sfTF sf
           (sf',b0) = tf0 a0
       -- TODO Potential bug here: it could simulate too much!
-      simSendEvent  "CurrentFrameChanged"
+      simSendEvent "CurrentFrameChanged"
+      simSendEvent "HistoryChanged"
       simModifyHistory (const (mkHistory (a0, sf) sf' a0))
       return (a0, b0)
 
@@ -257,7 +263,8 @@ reactimateDebugStep = do
       (a', dt, sf', b') <- stF
       simModifyHistory (`historyRecordFrame1` (a', dt, sf'))
       when (dumpInput (simPrefs simState)) $ simPrint $ show a'
-      simSendEvent     "CurrentFrameChanged"
+      simSendEvent "CurrentFrameChanged"
+      simSendEvent "HistoryChanged"
       return (a', Just dt, b')
 
     step1 = do
@@ -358,6 +365,11 @@ simGetCommand = do
   put (simState { simCommands = cms })
   return c
 
+simEmptyHistory :: SimMonad p a b ()
+simEmptyHistory = do
+  sf0 <- historyGetSF0
+  modify $ \simState -> simState { simHistory = mkEmptyHistory sf0 }
+
 simReplaceHistory :: (a, [(DTime, a)]) -> SimMonad p a b ()
 simReplaceHistory (a0, as) = do
   sf0     <- historyGetSF0
@@ -409,6 +421,7 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | Stop                       -- ^ Control: Stop the simulation
                | LoadTraceFromFile String   -- ^ Control: Load the Trace from a file (not implemented yet)
                | LoadTraceFromString String -- ^ Control: Load the Trace from a string (not implemented yet)
+               | DeleteTrace                -- ^ Control: Discard the whole history
                | IOSense Int                -- ^ Control: Sense input                  (not implemented yet)
                | GetInput Int               -- ^ Info: Obtain input at a particular frame
                | SetInput Int String        -- ^ Info: Change input at a particular frame
@@ -441,6 +454,7 @@ stopPlayingCommand (Pause)                 = True
 stopPlayingCommand (Stop)                  = True
 stopPlayingCommand (LoadTraceFromFile _)   = True
 stopPlayingCommand (LoadTraceFromString _) = True
+stopPlayingCommand (DeleteTrace)           = True
 stopPlayingCommand (IOSense _)             = True
 stopPlayingCommand (GetInput _ )           = False
 stopPlayingCommand (SetInput _ _)          = False
