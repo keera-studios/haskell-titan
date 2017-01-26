@@ -203,7 +203,8 @@ reactimateDebugStep = do
 
     Just (SetPrefDumpInput b) -> do modify (\s -> s { simPrefs = (simPrefs s) { dumpInput = b } })
 
-    Just GetPrefDumpInput     -> do (simSendMsg . ("DumpInput " ++) .  show . dumpInput . simPrefs) =<< get
+    Just GetPrefDumpInput     -> do dump <- (dumpInput . simPrefs) <$> get
+                                    simSendMsg ("DumpInput " ++ show dump)
 
     Just Ping                 -> do simSendMsg "Pong"
                                     simSendEvent "PingSent"
