@@ -38,7 +38,8 @@ library
                        FRP.Titan.Debug.CommTCP
   build-depends:       base >=4.7 && < 4.11,
                        Yampa,
-                       network
+                       network,
+                       transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
