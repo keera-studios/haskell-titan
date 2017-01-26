@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeSynonymInstances              #-}
 {-# LANGUAGE MultiParamTypeClasses             #-}
 {-# LANGUAGE FunctionalDependencies            #-}
+{-# LANGUAGE ScopedTypeVariables               #-}
+{-# LANGUAGE AllowAmbiguousTypes               #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind -Wall #-}
 
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
@@ -41,45 +43,57 @@ import FRP.Titan.Debug.Comm
 -- based on debug preferences and program configuration.
 
 -- | Start a Yampa program with interactive debugging enabled.
-reactimateControl :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
+reactimateControl :: forall p a b 
+                  .  (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                   => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
                   -> Preferences                    -- ^ Debug: Debugging preferences
-                  -> [Command p]                    -- ^ Debug: List of initial commands execute
+                  -> [Command p]                    -- ^ Debug: List of commands to execute
                   -> IO a                           -- ^ FRP:   Initial sensing action 
                   -> (Bool -> IO (DTime, Maybe a))  -- ^ FRP:   Continued sensing action
                   -> (Bool -> b -> IO Bool)         -- ^ FRP:   Rendering/consumption action
                   -> SF a b                         -- ^ FRP:   Signal Function that defines the program
                   -> IO ()
-reactimateControl bridge prefs commandQ init sense actuate sf = do
+reactimateControl bridge prefs cmds init sense actuate sf =
+  reactimateControl0 bridge prefs cmds (init, sense, actuate) sf
+
+-- | Start a Yampa program with interactive debugging enabled.
+reactimateControl0 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
+                   => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
+                   -> Preferences                    -- ^ Debug: Debugging preferences
+                   -> [Command p]                    -- ^ Debug: List of commands to execute
+                   -> SimOps a b                     -- ^ FRP:   Simulation (sensing, actuating) actions
+                   -> SF a b                         -- ^ FRP:   Signal Function that defines the program
+                   -> IO ()
+reactimateControl0 bridge prefs commandQ simOps sf = do
 
   (command,commandQ') <- getCommand bridge commandQ
 
   -- Process one command and loop
   case command of
 
-    Nothing                  -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Nothing                  -> reactimateControl0 bridge prefs commandQ' simOps sf
     Just Exit                -> return ()
 
     -- Jump one step back in the simulation
-    Just SkipBack            -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just SkipBack            -> reactimateControl0 bridge prefs commandQ' simOps sf
 
     -- Re-execute the last step
-    Just Redo                -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just Redo                -> reactimateControl0 bridge prefs commandQ' simOps sf
 
     -- TODO: Skip cycle while sensing the input
-    Just SkipSense           -> do a0 <- init
+    Just SkipSense           -> do a0 <- simSense simOps
                                    when (dumpInput prefs) $ print a0
 
-                                   let myInit = do (_,ma') <- sense False
+                                   let myInit = do (_,ma') <- simSense1 simOps False
                                                    return $ fromMaybe a0 ma'
 
                                    ebSendEvent bridge "CurrentFrameChanged"
 
-                                   reactimateControl bridge prefs commandQ' myInit sense actuate sf
+                                   reactimateControl0 bridge prefs commandQ' (myInit, simSense1 simOps, simActuate simOps) sf
 
     -- TODO: Jump to a specific frame
     Just (JumpTo n)          -> do ebSendEvent bridge "CurrentFrameChanged"
-                                   reactimateControl bridge prefs commandQ' init sense actuate sf
+                                   reactimateControl0 bridge prefs commandQ' simOps sf
 
     -- Simulate indefinitely
     Just Play                 -> do (a0, sf', _) <- step0
@@ -87,14 +101,14 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
                                                        then commandQ'
                                                        else appendCommand commandQ' Play
                                         history    = mkHistory (a0, sf)
-                                    reactimateControl' bridge prefs (history,sf',a0) (commandQ'') init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf',a0) (commandQ'') simOps
 
-    Just Pause                -> reactimateControl bridge prefs commandQ' init sense actuate sf
+    Just Pause                -> reactimateControl0 bridge prefs commandQ' simOps sf
 
     -- Simulate one step forward
     Just Step                 -> do (a0, sf', _) <- step0
                                     let history    = mkHistory (a0, sf)
-                                    reactimateControl' bridge prefs (history,sf', a0) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf', a0) commandQ' simOps
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a0, sf', b0) <- step0
@@ -104,7 +118,7 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
 
                                     -- Continue
                                     -- TODO Potential bug here: it could simulate too much!
-                                    reactimateControl' bridge prefs (history,sf',a0) commandQ'' init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf',a0) commandQ'' simOps
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a0, sf', b0) <- skip0
@@ -113,49 +127,49 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
                                     let history    = mkHistory (a0, sf)
 
                                     -- TODO Potential bug here: it could simulate too much!
-                                    reactimateControl' bridge prefs (history,sf',a0) commandQ'' init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf',a0) commandQ'' simOps
 
     Just (GetInput _)         -> do ebSendMsg bridge ("Nothing")
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
 
     Just GetCurrentTime       -> do ebSendMsg bridge ("CurrentTime " ++ show 0)
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
 
     Just GetCurrentFrame      -> do ebSendMsg bridge ("CurrentFrame " ++ show 0)
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory    -> do ebPrint bridge ("CurrentHistory 0")
-                                   reactimateControl bridge prefs commandQ' init sense actuate sf
+                                   reactimateControl0 bridge prefs commandQ' simOps sf
 
     Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl bridge prefs' commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs' commandQ' simOps sf
 
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
 
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge   "PingSent"
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
 
     Just c                    -> do ebSendEvent bridge ("Got " ++ show c ++ ", dunno what to do with it")
-                                    reactimateControl bridge prefs commandQ' init sense actuate sf
+                                    reactimateControl0 bridge prefs commandQ' simOps sf
   where
     -- step0 :: IO (a, SF' a b, b)
     step0 = do
       -- Step
-      a0 <- init
+      a0 <- simSense simOps
       when (dumpInput prefs) $ print a0
 
       let tf0  = sfTF sf
           (sf',b0) = tf0 a0
-      _ <- actuate True b0
+      _ <- simActuate simOps True b0
       ebSendEvent bridge "CurrentFrameChanged"
       return (a0, sf', b0)
 
     -- skip0 :: IO (a, SF' a b, b)
     skip0 = do
-      a0 <- init
+      a0 <- simSense simOps
       when (dumpInput prefs) $ print a0
 
       let tf0  = sfTF sf
@@ -173,104 +187,103 @@ reactimateControl bridge prefs commandQ init sense actuate sf = do
         ebSendEvent bridge "ConditionMet"
       return cond
 
+type SimOps a b = (IO a, (Bool -> IO (DTime, Maybe a)), (Bool -> b -> IO Bool))
+
+  -- IO a                                      -- ^ FRP:   Initial sensing action 
+  -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
+  -- (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
+
+simSense :: SimOps a b -> IO a
+simSense (op, _, _) = op
+
+simSense1 :: SimOps a b -> Bool -> IO (DTime, Maybe a)
+simSense1 (_, op, _) = op
+
+simActuate :: SimOps a b -> Bool -> b -> IO Bool
+simActuate (_, _, op) = op
+
 -- | Continue simulating a Yampa program with interactive debugging enabled.
-reactimateControl' :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
+reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                    => ExternalBridge                            -- ^ Debug: Communication bridge for the interactive GUI
                    -> Preferences                               -- ^ Debug: Debugging preferences
                    -> (History a b, SF' a b, a)                 -- ^ Execution History: list of inputs and SF continuations
                                                                 -- ^ FRP:   Signal Function that defines the program
                                                                 -- ^ Debug: Last known input
                    -> [Command p]                               -- ^ Debug: List of initial commands execute
-                   -> IO a                                      -- ^ FRP:   Initial sensing action 
-                   -> (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
-                   -> (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
+                   -> SimOps a b
                    -> IO ()
-reactimateControl' bridge prefs (history, sf, lastInput) commandQ init sense actuate = do
+reactimateControl1 bridge prefs (history, sf, lastInput) commandQ simOps  = do
   (command,commandQ') <- getCommand bridge commandQ
 
   case command of
 
-    Nothing   -> reactimateControl' bridge prefs (history, sf, lastInput) commandQ' init sense actuate
+    Nothing   -> reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
     Just Exit -> return ()
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory     -> do let num = historyGetNumFrames history
                                     ebPrint bridge ("CurrentHistory " ++ show num)
-                                    reactimateControl' bridge prefs (history,sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
     -- Jump to a specific frame
-    Just (JumpTo n)           -> do let ((a0, sf0), ps) = getHistory history
-                                    when (length ps + 1 > n) $ do
-                                        ebSendEvent bridge   "CurrentFrameChanged"
-                                        case n of
-                                          0 -> reactimateControl bridge prefs commandQ' init sense actuate sf0
-                                          _ -> let ps' = reverse $ take n $ reverse ps
-                                                   ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = ps'
-                                               in reactimateControl' bridge prefs (History ((a0, sf0), prevs), sf', lastInput) (Redo:commandQ') init sense actuate
+    Just (JumpTo n)           -> do ebSendEvent bridge   "CurrentFrameChanged"
+                                    case historyJumpTo history n of
+                                      (Just history', Nothing) -> do
+                                        reactimateControl1 bridge prefs (history', sf, lastInput) commandQ' simOps
+                                      (Just history', Just (Left (sf', lastInput'))) -> do
+                                        let commandQ'' = pushCommand commandQ' Redo
+                                        reactimateControl1 bridge prefs (history', sf', lastInput') commandQ'' simOps
+                                      (Nothing, Just (Right sf0)) ->
+                                        reactimateControl0 bridge prefs commandQ' simOps sf0
 
     -- Discard all future after a specific frame
     Just (DiscardFuture n)    -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case historyDiscardFuture history n of
                                       (Just history', Nothing) -> do
-                                        reactimateControl' bridge prefs (history',sf,lastInput) commandQ' init sense actuate
+                                        reactimateControl1 bridge prefs (history',sf,lastInput) commandQ' simOps
                                       (Just history', Just (Left (sf', lastInput'))) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
-                                        reactimateControl' bridge prefs (history', sf', lastInput') commandQ'' init sense actuate
+                                        reactimateControl1 bridge prefs (history', sf', lastInput') commandQ'' simOps
                                       (Nothing, Just (Right sf0)) ->
-                                        reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                        reactimateControl0 bridge prefs commandQ' simOps sf0
 
     -- Jump one step back in the simulation
     Just SkipBack             -> do ebSendEvent bridge   "CurrentFrameChanged"
                                     case historyBack history of
                                       (Just history', Left (sf', lastInput')) -> do
                                         let commandQ'' = pushCommand commandQ' Redo
-                                        reactimateControl' bridge prefs (history', sf', lastInput') commandQ'' init sense actuate
+                                        reactimateControl1 bridge prefs (history', sf', lastInput') commandQ'' simOps
                                       (Nothing, Right sf0) ->
-                                        reactimateControl bridge prefs commandQ' init sense actuate sf0
+                                        reactimateControl0 bridge prefs commandQ' simOps sf0
                                         
-                                    -- case history of
-                                    --   ((a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> do
-                                    --     let commandQ'' = pushCommand commandQ' Redo
-                                    --     reactimateControl' bridge prefs ((a0, sf0), prevs) commandQ'' init sense actuate sf' lastInput
-
-                                    --   ((a0, sf0), _:(_a,_dt, sf'):[]) -> do
-                                    --     let commandQ'' = pushCommand commandQ' Redo
-                                    --     reactimateControl' bridge prefs ((a0, sf0), []) commandQ'' init sense actuate sf' a0
-
-                                    --   ((a0, sf0), _:[]) ->
-                                    --     reactimateControl bridge prefs commandQ' init sense actuate sf0
-
-                                    --   ((a0, sf0), []) ->
-                                    --     reactimateControl bridge prefs commandQ' init sense actuate sf0
-
     -- Re-execute the last step
-    Just Redo                 -> -- reactimateControl' bridge prefs history commandQ' sense actuate sf lastInput
+    Just Redo                 -> -- reactimateControl1 bridge prefs history commandQ' sense actuate sf lastInput
                                  do let (a0, mdt, sfc) = historyGetCurFrame history
                                         (sf', b0) = case (mdt, sfc) of
                                                       (_,       Left sf0)  -> sfTF  sf0 a0
                                                       (Just dt, Right sf1) -> sfTF' sf1 dt a0
 
                                     when (dumpInput prefs) $ print a0
-                                    last <- actuate True b0
+                                    last <- simActuate simOps True b0
                                     unless last $
-                                      reactimateControl' bridge prefs (history, sf', a0) commandQ' init sense actuate
+                                      reactimateControl1 bridge prefs (history, sf', a0) commandQ' simOps
 
 
     -- TODO: Skip cycle while sensing the input
     -- Should the input be used as new last input?
-    Just SkipSense            -> do (_,a)  <- sense False
+    Just SkipSense            -> do (_,a)  <- simSense1 simOps False
                                     when (dumpInput prefs) $ print a
                                     ebSendEvent bridge   "CurrentFrameChanged"
 
-                                    reactimateControl' bridge prefs (history,sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf,lastInput) commandQ' simOps
 
     -- Simulate one step forward
     Just Step                 -> do (a', dt, sf', b', last) <- step1
                                     let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     unless last $
-                                      reactimateControl' bridge prefs (history',sf',a') commandQ' init sense actuate
+                                      reactimateControl1 bridge prefs (history',sf',a') commandQ' simOps
 
     -- Simulate until a predicate on the input and output holds
     Just (StepUntil p)        -> do (a', dt, sf', b', last) <- step1
@@ -281,7 +294,7 @@ reactimateControl' bridge prefs (history, sf, lastInput) commandQ init sense act
                                     let commandQ'' = if cond then commandQ' else pushCommand commandQ' (StepUntil p)
 
                                     unless last $
-                                      reactimateControl' bridge prefs (history', sf', a') commandQ'' init sense actuate
+                                      reactimateControl1 bridge prefs (history', sf', a') commandQ'' simOps
 
     -- Skip steps until a predicate on the input and output holds
     Just (SkipUntil p)        -> do (a', dt, sf', b') <- skip1
@@ -291,11 +304,11 @@ reactimateControl' bridge prefs (history, sf, lastInput) commandQ init sense act
 
                                     -- TODO Potential bug here: it could simulate too much! If the condition is not
                                     -- met, it will not "actuate", and so it will not check whether it should have stopped.
-                                    last <- if cond then actuate True b' else return False
+                                    last <- if cond then simActuate simOps True b' else return False
                                     let history' = historyRecordFrame1 history (a', dt, sf')
 
                                     unless last $
-                                      reactimateControl' bridge prefs (history',sf',a') commandQ'' init sense actuate
+                                      reactimateControl1 bridge prefs (history',sf',a') commandQ'' simOps
 
     -- Simulate indefinitely
     Just Play                 -> do (a', dt, sf', b', last) <- step1
@@ -304,70 +317,70 @@ reactimateControl' bridge prefs (history, sf, lastInput) commandQ init sense act
                                     let commandQ'' = if any stopPlayingCommand commandQ' then commandQ' else commandQ' ++ [Play]
 
                                     unless last $
-                                      reactimateControl' bridge prefs (history',sf',a') commandQ'' init sense actuate
+                                      reactimateControl1 bridge prefs (history',sf',a') commandQ'' simOps
 
-    Just Pause                -> reactimateControl' bridge prefs (history, sf, lastInput) commandQ' init sense actuate
+    Just Pause                -> reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
-    Just (IOSense f)          -> do (dt, ma') <- sense False
+    Just (IOSense f)          -> do (dt, ma') <- simSense1 simOps False
                                     let a' = fromMaybe lastInput ma'
                                     when (dumpInput prefs) $ print a'
                                     let history'' = historyReplaceInputDTimeAt history f dt a'
-                                    reactimateControl' bridge prefs (history'',sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history'',sf,lastInput) commandQ' simOps
 
     Just (GetInput f)         -> do let e = historyGetInput history f
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs (history, sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf,lastInput) commandQ' simOps
 
     Just (SetInput f i)       -> do history'' <- case maybeRead i of
                                                    Nothing -> return history
                                                    Just a  -> return (historyReplaceInputAt history f a)
-                                    reactimateControl' bridge prefs (history'', sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history'', sf,lastInput) commandQ' simOps
 
     Just (GetGTime f)         -> do let e = historyGetGTime history f 
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs (history, sf, lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
     Just (GetDTime f)         -> do let e = historyGetDTime history f
                                     ebSendMsg bridge (show e)
-                                    reactimateControl' bridge prefs (history,sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history,sf,lastInput) commandQ' simOps
 
     Just (SetDTime f dtS)     -> do history'' <- case maybeRead dtS of
                                                    Nothing -> return history
                                                    Just dt -> return (historyReplaceDTimeAt history f dt)
-                                    reactimateControl' bridge prefs (history'',sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history'',sf,lastInput) commandQ' simOps
 
     Just GetCurrentTime       -> do let num = historyGetCurrentTime history
                                     ebSendMsg bridge ("CurrentTime " ++ show num)
-                                    reactimateControl' bridge prefs (history, sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf,lastInput) commandQ' simOps
 
     Just GetCurrentFrame      -> do let num = historyGetCurrentFrame history
                                     ebSendMsg bridge ("CurrentFrame " ++ show num)
-                                    reactimateControl' bridge prefs (history, sf, lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
     Just (SetPrefDumpInput b) -> do let prefs' = prefs { dumpInput = b }
-                                    reactimateControl' bridge prefs' (history, sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs' (history, sf,lastInput) commandQ' simOps
 
     Just GetPrefDumpInput     -> do print (dumpInput prefs)
-                                    reactimateControl' bridge prefs (history, sf, lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf, lastInput) commandQ' simOps
 
     Just Ping                 -> do ebSendMsg bridge "Pong"
                                     ebSendEvent bridge "PingSent"
-                                    reactimateControl' bridge prefs (history, sf,lastInput) commandQ' init sense actuate
+                                    reactimateControl1 bridge prefs (history, sf,lastInput) commandQ' simOps
     
     other                     -> putStrLn $ show other
   where
     step1 = do
-      (dt, ma') <- sense False
+      (dt, ma') <- simSense1 simOps False
       let a'       = fromMaybe lastInput ma'
           (sf',b') = (sfTF' sf) dt a'
       when (dumpInput prefs) $ print a'
                                                  
-      last <- actuate True b'
+      last <- simActuate simOps True b'
       ebSendEvent bridge   "CurrentFrameChanged"
       return (a', dt, sf', b', last)
 
     skip1 = do
-      (dt, ma') <- sense False
+      (dt, ma') <- simSense1 simOps False
       let a'       = fromMaybe lastInput ma'
           (sf',b') = (sfTF' sf) dt a'
                                                  
@@ -471,7 +484,7 @@ appendCommand :: [a] -> a -> [a]
 appendCommand cs c = cs ++ [c]
 
 -- * Execution History
-newtype History a b = History { getHistory :: ((a, SF a b), [(a, DTime, SF' a b)]) }
+data History a b = History { getHistory :: ((a, SF a b), [(a, DTime, SF' a b)]) }
 
 historyReplaceInputAt history f a = 
   let ((a0, sf0), ps) = getHistory history
@@ -549,6 +562,16 @@ historyBack history =
     ((a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History ((a0, sf0), []),    Left (sf', a0))
     ((a0, sf0), _:[])                                        -> (Nothing, Right sf0)
     ((a0, sf0), [])                                          -> (Nothing, Right sf0)
+
+historyJumpTo :: History a b -> Int -> (Maybe (History a b), Maybe (Either (SF' a b, a) (SF a b)))
+historyJumpTo history n =
+  let ((a0, sf0), ps) = getHistory history
+  in if (length ps + 1 > n)
+       then if n > 0
+              then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps 
+                   in (Just $ History ((a0, sf0), prevs), Just $ Left (sf', lastInput))
+              else (Nothing, Just $ Right sf0)
+       else (Just history, Nothing)
 
 historyDiscardFuture :: History a b -> Int -> (Maybe (History a b), Maybe (Either (SF' a b, a) (SF a b)))
 historyDiscardFuture history n =
