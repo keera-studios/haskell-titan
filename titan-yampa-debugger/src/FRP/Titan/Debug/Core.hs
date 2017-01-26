@@ -66,6 +66,21 @@ data SimState p a b = SimState
   , simOps      :: SimOps a b
   }
 
+type SimOps a b = (IO a, (Bool -> IO (DTime, Maybe a)), (Bool -> b -> IO Bool))
+
+  -- IO a                                      -- ^ FRP:   Initial sensing action
+  -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
+  -- (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
+
+simSense :: SimOps a b -> IO a
+simSense (op, _, _) = op
+
+simSense1 :: SimOps a b -> Bool -> IO (DTime, Maybe a)
+simSense1 (_, op, _) = op
+
+simActuate :: SimOps a b -> Bool -> b -> IO Bool
+simActuate (_, _, op) = op
+
 -- = type SimMonad p a b = StateT (ExternalBridge, Preferences, History a b, [Command p], SimOps a b)
 -- =                    => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
 -- =                    -> Preferences                    -- ^ Debug: Debugging preferences
@@ -217,21 +232,6 @@ reactimateControl0 simState = do
         ebPrint     (simBridge simState) ("Condition became true, with " ++ show a0 ++ " (" ++ show b0 ++ ")")
         ebSendEvent (simBridge simState) "ConditionMet"
       return cond
-
-type SimOps a b = (IO a, (Bool -> IO (DTime, Maybe a)), (Bool -> b -> IO Bool))
-
-  -- IO a                                      -- ^ FRP:   Initial sensing action
-  -- (Bool -> IO (DTime, Maybe a))             -- ^ FRP:   Continued sensing action
-  -- (Bool -> b -> IO Bool)                    -- ^ FRP:   Rendering/consumption action
-
-simSense :: SimOps a b -> IO a
-simSense (op, _, _) = op
-
-simSense1 :: SimOps a b -> Bool -> IO (DTime, Maybe a)
-simSense1 (_, op, _) = op
-
-simActuate :: SimOps a b -> Bool -> b -> IO Bool
-simActuate (_, _, op) = op
 
 -- | Continue simulating a Yampa program with interactive debugging enabled.
 reactimateControl1 :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
