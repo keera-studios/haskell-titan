@@ -126,6 +126,7 @@ sendToYampaSocketSync' ioBridgeRef msg = do
     Nothing     -> return Nothing
     Just socket -> do hPutStrLn stderr ("Debug: Sending " ++ msg)
                       hPutStrLn (commHandle socket) msg
+                      hFlush (commHandle socket)
                       waitForInput (commHandle socket) 10000
                       s <- hGetLine (commHandle socket)
                       hPutStrLn stderr ("Debug: received " ++ s)
