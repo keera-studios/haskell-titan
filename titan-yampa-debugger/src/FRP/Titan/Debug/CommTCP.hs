@@ -56,7 +56,7 @@ mkSendMsg outChannel getChannel = void $
 mkSendEvent :: MVar [String] -> IO ()
 mkSendEvent channel = void $
   forkIO $ serveAsync "8082" $ \_ handle -> forever $ do
-    putStrLn "Trying to send outgoing events"
+    -- putStrLn "Trying to send outgoing events"
     var <- takeMVar channel
     putMVar channel []
     mapM_ (putStrLn . ("Sending to the event log: " ++) . show) var

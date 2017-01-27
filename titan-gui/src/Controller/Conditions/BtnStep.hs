@@ -44,8 +44,9 @@ installCondition cenv = do
 installConditionSaveTrace cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnSaveTrace (uiBuilder (view cenv))
   btn =:> conditionVMSaveTrace cenv
+
 conditionVMSaveTrace :: CEnv -> IO ()
-conditionVMSaveTrace cenv = do
+conditionVMSaveTrace cenv = onViewAsync $ do
   window <- mainWindow (uiBuilder (view cenv))
   fch <- fileChooserDialogNew (Just "Save Yampa trace") Nothing
                               FileChooserActionSave
@@ -71,7 +72,12 @@ conditionVMSaveTrace cenv = do
        ResponseAccept -> do nwf <- fileChooserGetFilename fch
                             case nwf of
                                  Nothing -> putStrLn "Nothing"
-                                 Just path -> putStrLn ("New file path is:\n" ++ path)
+                                 Just path -> do putStrLn ("New file path is:\n" ++ path)
+                                                 n <- sendToYampaSocketSync (extra cenv) "GetTrace"
+                                                 case n >>= maybeRead of
+                                                   Nothing -> return ()
+                                                   Just Nothing  -> return ()
+                                                   Just (Just s) -> writeFile path s
        ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
 
   widgetDestroy fch
@@ -113,7 +119,7 @@ conditionVMLoadTrace cenv = do
     Nothing -> return ()
     (Just p) -> do
       contents <- readFile p
-      sendToYampaSocketAsync (extra cenv) ("LoadTrace " ++ contents)
+      sendToYampaSocketAsync (extra cenv) ("LoadTraceFromString " ++ show contents)
 
 -- gtkBuilderAccessor "toolBtnRefineTrace"        "Button"
 installConditionRefineTrace cenv = void $ do
@@ -316,3 +322,6 @@ conditionVMDeleteTrace cenv =
 
 conditionVMReplayTrace cenv =
   sendToYampaSocketAsync (extra cenv) "ReplayTrace"
+
+maybeRead :: Read a => String -> Maybe a
+maybeRead = fmap fst . listToMaybe . reads

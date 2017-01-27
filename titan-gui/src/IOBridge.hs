@@ -124,9 +124,11 @@ sendToYampaSocketSync' ioBridgeRef msg = do
   let mSocket = yampaSocket ioBridge
   case mSocket of
     Nothing     -> return Nothing
-    Just socket -> do hPutStrLn (commHandle socket) msg
+    Just socket -> do hPutStrLn stderr ("Debug: Sending " ++ msg)
+                      hPutStrLn (commHandle socket) msg
                       waitForInput (commHandle socket) 10000
                       s <- hGetLine (commHandle socket)
+                      hPutStrLn stderr ("Debug: received " ++ s)
                       return (Just s)
 
 getFromYampaSocketSync ioBridgeRef =

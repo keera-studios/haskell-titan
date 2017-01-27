@@ -159,9 +159,11 @@ reactimateDebugStep = do
                                        simSendEvent "CurrentFrameChanged"
                                        simSendEvent "HistoryChanged"
  
-    Just (LoadTraceFromString s) -> do case maybeRead s of
-                                         Nothing -> return ()
-                                         Just s  -> simReplaceHistory s
+    Just (LoadTraceFromString s) -> do simPrint "Loading Trace from string"
+                                       case maybeRead s of
+                                         Nothing -> simPrint "Could not read a trace"
+                                         Just s  -> do simPrint "Replacing history"
+                                                       simReplaceHistory s
 
     Just (IOSense f)             -> do running <- (historyIsRunning . simHistory) <$> get
                                        if running
@@ -184,7 +186,8 @@ reactimateDebugStep = do
                                            simModifyHistory (\h -> historyReplaceInputAt h f a)
 
     Just (GetTrace)              -> do simTrace <- simGetTrace
-                                       simSendMsg (show simTrace)
+                                       simPrint (show simTrace)
+                                       simSendMsg (show (show <$> simTrace))
 
     Just (GetInput f)            -> do running <- (historyIsRunning . simHistory) <$> get
                                        if running
@@ -380,7 +383,7 @@ simGetTrace :: SimMonad p a b (Maybe (a, [(DTime, a)]))
 simGetTrace = do
   history <- getSimHistory
   case getHistory history of
-    (Nothing , _) -> return Nothing
+    (Nothing , _)     -> return Nothing
     (Just (a0,_), as) -> return (Just (a0, map (\(a,dt,_) -> (dt, a)) as))
 
 historyGetSF0 :: SimMonad p a b (SF a b)
