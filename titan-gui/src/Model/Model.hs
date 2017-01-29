@@ -17,10 +17,23 @@ data Frame = Frame
   }
  deriving (Show, Eq)
 
+frameDeselect :: Frame -> Frame
+frameDeselect f = f { fSelected = False }
+
+frameSelect :: Frame -> Frame
+frameSelect f = f { fSelected = True }
+
+frameNotCurrent :: Frame -> Frame
+frameNotCurrent f = f { fCurrent = False }
+
+frameCurrent :: Frame -> Frame
+frameCurrent f = f { fCurrent = True }
+
 emptyBM :: Model
 emptyBM = Model
   { selectedFrame      = Nothing
   , selectedFrameInput = Nothing
+  , curSimFrame        = Nothing
   , frames             = defaultFrames
   }
 

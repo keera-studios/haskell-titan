@@ -276,6 +276,7 @@ conditionVMConnect cenv =
             debugEntry <- txtDebug (uiBuilder (view cenv))
             let debugEntrySetter v = postGUIAsync (get debugEntry textViewBuffer >>= (\b -> set b [textBufferText := v]))
             liftR show eventField =:> debugEntrySetter
+            ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMTimeChanged cenv
             ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMFrameChanged cenv
             ((const ()) <^> (guardRO' eventField (== Just "HistoryChanged")))      =:> conditionVMHistoryChanged cenv
 
@@ -283,13 +284,26 @@ conditionVMConnect cenv =
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")
 
 -- | Make this reactive
-conditionVMFrameChanged cenv = do
+conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
   n <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
   putStrLn $ "Received " ++ show n
   case maybe [] words n of
     ["CurrentTime", m] -> postGUIAsync $ entrySetText entryGT m
     _                  -> return ()
+
+-- | Make this reactive
+conditionVMFrameChanged cenv = do
+  let curSimFrame' = mkFieldAccessor curSimFrameField (model cenv)
+  entryGT <- txtGlobalTime (uiBuilder (view cenv))
+  n <- sendToYampaSocketSync (extra cenv) "GetCurrentFrame"
+  putStrLn $ "Received " ++ show n
+  case maybe [] words n of
+    ["CurrentFrame", m] -> do case maybeRead m of
+                                Just m' -> do putStrLn $ "Current Frame is " ++ show m'
+                                              reactiveValueWrite curSimFrame' (Just m')
+                                Nothing -> do reactiveValueWrite curSimFrame' Nothing
+    _                   -> do reactiveValueWrite curSimFrame' Nothing
 
 -- | Make this reactive
 conditionVMHistoryChanged cenv = do
