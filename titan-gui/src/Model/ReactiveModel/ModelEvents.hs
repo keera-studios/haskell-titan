@@ -10,6 +10,7 @@ data ModelEvent = UncapturedEvent
                 | Initialised
                 | SelectedFrameChanged
                 | SelectedFrameInputChanged
+                | CurSimFrame
                 | FramesChanged
  deriving (Eq,Ord)
 

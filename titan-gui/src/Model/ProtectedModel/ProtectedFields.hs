@@ -16,4 +16,5 @@ import Model.ProtectedModel.ProtectedModelInternals
 -- protectedField "Language"        [t|Maybe Language|] "Model"          "ModelEvent"
 protectedField "SelectedFrame"      [t|Maybe Int|]    "Model"          "ModelEvent"
 protectedField "SelectedFrameInput" [t|Maybe String|] "Model"          "ModelEvent"
+protectedField "CurSimFrame"        [t|Maybe Int|]    "Model"          "ModelEvent"
 protectedField "Frames"             [t|[Frame]|]      "Model"          "ModelEvent"

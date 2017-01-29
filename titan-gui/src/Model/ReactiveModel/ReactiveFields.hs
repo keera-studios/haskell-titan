@@ -20,4 +20,5 @@ type Field a = RFs.Field a Model ModelEvent
 -- reactiveField "Status"         [t|Status|]
 reactiveField "SelectedFrame"      [t|Maybe Int|]
 reactiveField "SelectedFrameInput" [t|Maybe String|]
+reactiveField "CurSimFrame"        [t|Maybe Int|]
 reactiveField "Frames"             [t|[Frame]|]
