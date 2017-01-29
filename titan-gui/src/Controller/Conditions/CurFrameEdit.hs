@@ -27,7 +27,6 @@ installConditionModifyInput cenv = do
 
   btn <- toolButtonActivateField <$> toolBtnModifyInput (uiBuilder (view cenv))
   (btn `governingR` curFrameData) =:> conditionVMModifyInput cenv
-  return ()
 
 conditionVMModifyInput :: CEnv -> (Maybe Int, Maybe String) -> IO ()
 conditionVMModifyInput cenv (mn, mi) = do
