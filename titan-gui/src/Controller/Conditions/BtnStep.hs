@@ -297,10 +297,13 @@ conditionVMHistoryChanged cenv = do
   n <- sendToYampaSocketSync (extra cenv) "SummarizeHistory"
   putStrLn $ "Received " ++ show n
   case maybe [] words n of
-    ["CurrentHistory ", m] -> case maybeRead m of
-                                Just m' -> reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
-                                Nothing -> reactiveValueWrite fs []
-    _                      -> reactiveValueWrite fs []
+    ["CurrentHistory", m] -> case maybeRead m of
+                               Just m' -> do putStrLn $ "Show have now " ++ show m' ++ " frames"
+                                             reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
+                               Nothing -> do putStrLn "Could not read any number of frames"
+                                             reactiveValueWrite fs []
+    _                      ->  do putStrLn "Could not read any number of frames"
+                                  reactiveValueWrite fs []
 
 
 conditionVMDisconnect cenv =

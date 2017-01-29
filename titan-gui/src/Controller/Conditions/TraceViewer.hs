@@ -83,8 +83,9 @@ installTraceViewer cenv = do
   -- Debug
   curFrameField' =:> wrapMW (\frame -> putStrLn $ "The selection changed " ++ show frame)
 
-  let framesField' = mkFieldAccessor framesField      (model cenv)
+  let framesField' = mkFieldAccessor framesField (model cenv)
   framesField' =:> (conditionVMFrames streamChart cenv)
+  framesField' =:> wrapMW (\frames -> putStrLn $ "The frames changed " ++ show frames)
 
 conditionVMFrames streamChart cenv fs = onViewAsync $ do
   print fs
