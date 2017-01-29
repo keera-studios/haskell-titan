@@ -64,9 +64,9 @@ installTraceViewerSelection cenv streamChart = do
 installTraceViewerFrames :: CEnv -> StreamChart Frame -> IO ()
 installTraceViewerFrames cenv streamChart = do
   -- Debug
-  let framesField' = mkFieldAccessor framesField (model cenv)
-  framesField' =:> wrapMW (onViewAsync . streamChartSetList streamChart)
-  framesField' =:> wrapMW (\frames -> putStrLn $ "The frames changed " ++ show frames)
+  let framesField = mkFieldAccessor framesField (model cenv)
+  framesField =:> wrapMW (onViewAsync . streamChartSetList streamChart)
+  framesField =:> wrapMW (\fs -> putStrLn $ "Frames changed:" ++ show fs)
 
 -- | This funciton determines the style of the stream chart based on the kind
 -- of frame.
