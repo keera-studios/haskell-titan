@@ -56,7 +56,8 @@ installTraceViewerSelection cenv streamChart = do
              else do putStrLn $ "Released: " ++ show (fs!!p)
                      reactiveValueWrite curFrameField' (Just p)
 
-  curFrameField' =:> wrapMW (\frame -> putStrLn $ "The selection changed " ++ show frame)
+  curFrameField' =:>
+    wrapMW (\frame -> putStrLn $ "The selection changed " ++ show frame)
 
 -- | Install Rule that keeps the frames model field in sync with the frames in
 -- the view.
