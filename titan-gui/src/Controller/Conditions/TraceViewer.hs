@@ -1,76 +1,52 @@
+{-# LANGUAGE MultiWayIf #-}
 module Controller.Conditions.TraceViewer where
 
+import Data.ReactiveValue
 import Graphics.UI.Gtk hiding (Frame)
 import Graphics.UI.Gtk.StreamChart
 import Hails.MVC.Model.ProtectedModel.Reactive
-import Data.ReactiveValue
 
-import View.Objects
 import CombinedEnvironment
 import Model.Model
+import View.Objects
 
-defaultRenderSettingsF :: Frame -> StreamChartStyle
-defaultRenderSettingsF = \c ->
-        StreamChartStyle
-          { renderFGColor = (0.5, 0.6, 0.7, 1.0)
-          , renderBGColor = case () of
-                              _ | fSelected c       -> (0.8, 0.8, 0.8, 0.9)
-                                | fCurrent c        -> (1.0, 0.6, 0.0, 0.9)
-                                | fError c          -> (0.9, 0.2, 0.1, 0.9)
-                                | (not $ fCached c) -> (0.9, 0.9, 0.9, 1.0)
-                                | otherwise         -> (0.1, 0.9, 0.1, 0.9)
-          , renderDot     = case () of
-                              _ | fBreakpoint c   -> True
-                                | otherwise       -> False
-          , renderLetter  = case () of
-                              _ | fError c        -> Just 'X'
-                                | otherwise       -> Nothing
-          }
-
-installCondition cenv = do
+installCondition :: CEnv -> IO ()
+installCondition cenv =
   installTraceViewer cenv
 
+-- TODO: Move this to the View
+installTraceViewer :: CEnv -> IO ()
 installTraceViewer cenv = do
-  sw <- scrollFrameSelection (uiBuilder (view cenv))
 
+  -- Initialize stream chart
   streamChart <- streamChartNew :: IO (StreamChart Frame)
   widgetSetSizeRequest streamChart 10000 10000
 
+  -- Add stream chart to view
   -- viewport `onResize` (do (w,h) <- widgetGetSize window
   --                       adjustmentSetPageSize adjustX w
   --                       adjustmentSetPageSize adjustY h)
-
   -- containerAdd viewport streamChart
   -- containerAdd sw viewport
+  sw  <- scrollFrameSelection (uiBuilder (view cenv))
   scrolledWindowAddWithViewport sw streamChart
 
-  -- let myList = [ 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'
-  --              , 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'
-  --              , 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'
-  --              , 'a', 'a', 'a', 'a', 'c', 'a', 'a', 'a', 'b', 'a', 'd', 'a', 'a', 'a'
-  --              ]
-
-  -- let defaultRenderSettingsF = \c ->
-  --       StreamChartStyle
-  --         { renderFGColor = (0.5, 0.6, 0.7, 1.0)
-  --         , renderBGColor = case c of
-  --                             'a' -> (0.1, 0.9, 0.1, 0.9)
-  --                             'b' -> (0.1, 0.2, 0.9, 0.9)
-  --                             'c' -> (0.8, 0.8, 0.8, 0.9)
-  --                             'd' -> (0.9, 0.2, 0.1, 0.9)
-  --                             _   -> (0.9, 0.9, 0.9, 1.0)
-  --         , renderDot     = if (c `notElem` ['b', 'd']) then True else False
-  --         , renderLetter  = if (c /= 'd') then Nothing else Just 'X'
-  --         }
-
+  -- Set rendering properties
   streamChartSetStyle streamChart defaultRenderSettingsF
 
-  let m              = model cenv
-  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+  -- Attach reactive rules
+  installTraceViewerSelection cenv streamChart
+  installTraceViewerFrames    cenv streamChart
+
+-- | Install Rule that keeps the user selection in the view in sync
+-- with the selection in the model.
+installTraceViewerSelection :: CEnv -> StreamChart Frame -> IO ()
+installTraceViewerSelection cenv streamChart = do
 
   -- TODO: Make streamchart reactive
   streamChartOnButtonEvent streamChart $ \press p -> do
-    let framesField' = mkFieldAccessor framesField      (model cenv)
+    let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
+        framesField'   = mkFieldAccessor framesField        (model cenv)
     fs <- reactiveValueRead (mkFieldAccessor framesField (model cenv))
     if (p >= length fs || p < 0)
       then do putStrLn "Out of range"
@@ -80,13 +56,30 @@ installTraceViewer cenv = do
              else do putStrLn $ "Released: " ++ show (fs!!p)
                      reactiveValueWrite curFrameField' (Just p)
 
-  -- Debug
   curFrameField' =:> wrapMW (\frame -> putStrLn $ "The selection changed " ++ show frame)
 
+-- | Install Rule that keeps the frames model field in sync with the frames in
+-- the view.
+installTraceViewerFrames :: CEnv -> StreamChart Frame -> IO ()
+installTraceViewerFrames cenv streamChart = do
+  -- Debug
   let framesField' = mkFieldAccessor framesField (model cenv)
-  framesField' =:> (conditionVMFrames streamChart cenv)
+  framesField' =:> wrapMW (onViewAsync . streamChartSetList streamChart)
   framesField' =:> wrapMW (\frames -> putStrLn $ "The frames changed " ++ show frames)
 
-conditionVMFrames streamChart cenv fs = onViewAsync $ do
-  print fs
-  streamChartSetList streamChart fs
+-- | This funciton determines the style of the stream chart based on the kind
+-- of frame.
+defaultRenderSettingsF :: Frame -> StreamChartStyle
+defaultRenderSettingsF = \c ->
+  StreamChartStyle
+    { renderFGColor = (0.5, 0.6, 0.7, 1.0)
+    , renderBGColor = if | fSelected c       -> (0.8, 0.8, 0.8, 0.9)
+                         | fCurrent c        -> (1.0, 0.6, 0.0, 0.9)
+                         | fError c          -> (0.9, 0.2, 0.1, 0.9)
+                         | (not $ fCached c) -> (0.9, 0.9, 0.9, 1.0)
+                         | otherwise         -> (0.1, 0.9, 0.1, 0.9)
+    , renderDot     = if | fBreakpoint c   -> True
+                         | otherwise       -> False
+    , renderLetter  = if | fError c        -> Just 'X'
+                         | otherwise       -> Nothing
+    }
