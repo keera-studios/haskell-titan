@@ -6,6 +6,8 @@ interactive software.
 It is built on the principles of Functional Reactive Programming, although it's
 ideas can be applied to other time-based abstractions.
 
+# Structure of Haskell Titan
+
 Haskell Titan is composed of two parts: testing facilities and debugging
 facilities.
 
