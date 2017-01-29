@@ -10,11 +10,12 @@ import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Reactive
 import Graphics.UI.Gtk.Reactive.Gtk2
 import Hails.MVC.Model.ProtectedModel.Reactive
-import Hails.Polling 
+import Hails.Polling
 import System.IO
 
 import CombinedEnvironment
 import IOBridge
+import Model.Model (defaultFrame)
 
 installCondition :: CEnv -> IO ()
 installCondition cenv = do
@@ -276,7 +277,8 @@ conditionVMConnect cenv =
             let debugEntrySetter v = postGUIAsync (get debugEntry textViewBuffer >>= (\b -> set b [textBufferText := v]))
             liftR show eventField =:> debugEntrySetter
             ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMFrameChanged cenv
-              
+            ((const ()) <^> (guardRO' eventField (== Just "HistoryChanged")))      =:> conditionVMHistoryChanged cenv
+
         )
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")
 
@@ -288,6 +290,18 @@ conditionVMFrameChanged cenv = do
   case maybe [] words n of
     ["CurrentTime", m] -> postGUIAsync $ entrySetText entryGT m
     _                  -> return ()
+
+-- | Make this reactive
+conditionVMHistoryChanged cenv = do
+  let fs = mkFieldAccessor framesField (model cenv)
+  n <- sendToYampaSocketSync (extra cenv) "SummarizeHistory"
+  putStrLn $ "Received " ++ show n
+  case maybe [] words n of
+    ["CurrentHistory ", m] -> case maybeRead m of
+                                Just m' -> reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
+                                Nothing -> reactiveValueWrite fs []
+    _                      -> reactiveValueWrite fs []
+
 
 conditionVMDisconnect cenv =
   catch (stopYampaSocket (extra cenv))

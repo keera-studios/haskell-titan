@@ -2,51 +2,27 @@ module Controller.Conditions.TraceViewer where
 
 import Graphics.UI.Gtk hiding (Frame)
 import Graphics.UI.Gtk.StreamChart
+import Hails.MVC.Model.ProtectedModel.Reactive
+import Data.ReactiveValue
 
 import View.Objects
 import CombinedEnvironment
-
-data Frame = Frame
-  { fSelected   :: Bool
-  , fCached     :: Bool
-  , fCurrent    :: Bool
-  , fBreakpoint :: Bool
-  , fError      :: Bool
-  , fNumber     :: Int
-  }
- deriving Show
-
-defaultSelectedFrame   = Frame True  True False False False 
-defaultFrame           = Frame False True False False False
-defaultCurrentFrame    = Frame False False True False False
-defaultBreakpointFrame = Frame False True False True  False
-defaultErrorFrame      = Frame False True False False True
-
-frames = zipWith (\f x -> f x)
-         [ defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         , defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         , defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         , defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         , defaultSelectedFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         , defaultErrorFrame, defaultFrame, defaultCurrentFrame, defaultFrame, defaultBreakpointFrame 
-         , defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame, defaultFrame
-         ]
-         [0..]
+import Model.Model
 
 defaultRenderSettingsF :: Frame -> StreamChartStyle
 defaultRenderSettingsF = \c ->
         StreamChartStyle
           { renderFGColor = (0.5, 0.6, 0.7, 1.0)
-          , renderBGColor = case () of 
+          , renderBGColor = case () of
                               _ | fSelected c       -> (0.8, 0.8, 0.8, 0.9)
                                 | fCurrent c        -> (1.0, 0.6, 0.0, 0.9)
                                 | fError c          -> (0.9, 0.2, 0.1, 0.9)
                                 | (not $ fCached c) -> (0.9, 0.9, 0.9, 1.0)
                                 | otherwise         -> (0.1, 0.9, 0.1, 0.9)
-          , renderDot     = case () of 
+          , renderDot     = case () of
                               _ | fBreakpoint c   -> True
                                 | otherwise       -> False
-          , renderLetter  = case () of 
+          , renderLetter  = case () of
                               _ | fError c        -> Just 'X'
                                 | otherwise       -> Nothing
           }
@@ -74,8 +50,6 @@ installTraceViewer cenv = do
   --              , 'a', 'a', 'a', 'a', 'c', 'a', 'a', 'a', 'b', 'a', 'd', 'a', 'a', 'a'
   --              ]
 
-  streamChartSetList streamChart frames
-
   -- let defaultRenderSettingsF = \c ->
   --       StreamChartStyle
   --         { renderFGColor = (0.5, 0.6, 0.7, 1.0)
@@ -91,9 +65,27 @@ installTraceViewer cenv = do
 
   streamChartSetStyle streamChart defaultRenderSettingsF
 
-  -- streamChartOnButtonEvent streamChart (\press p ->
-  --   if (p >= length frames || p < 0)
-  --     then putStrLn "Out of range"
-  --     else if press
-  --            then putStrLn $ "Pressed: "  ++ show (frames!!p)
-  --            else putStrLn $ "Released: " ++ show (frames!!p))
+  let m              = model cenv
+  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+
+  -- TODO: Make streamchart reactive
+  streamChartOnButtonEvent streamChart $ \press p -> do
+    let framesField' = mkFieldAccessor framesField      (model cenv)
+    fs <- reactiveValueRead (mkFieldAccessor framesField (model cenv))
+    if (p >= length fs || p < 0)
+      then do putStrLn "Out of range"
+              reactiveValueWrite curFrameField' Nothing
+      else if press
+             then do putStrLn $ "Pressed: "  ++ show (fs!!p)
+             else do putStrLn $ "Released: " ++ show (fs!!p)
+                     reactiveValueWrite curFrameField' (Just p)
+
+  -- Debug
+  curFrameField' =:> wrapMW (\frame -> putStrLn $ "The selection changed " ++ show frame)
+
+  let framesField' = mkFieldAccessor framesField      (model cenv)
+  framesField' =:> (conditionVMFrames streamChart cenv)
+
+conditionVMFrames streamChart cenv fs = onViewAsync $ do
+  print fs
+  streamChartSetList streamChart fs

@@ -81,7 +81,7 @@ reactimateDebugStep = do
 
     -- TODO: Print summary information about the history
     Just SummarizeHistory        -> do num <- historyGetNumFrames <$> getSimHistory
-                                       simPrint  ("CurrentHistory " ++ show num)
+                                       simSendMsg ("CurrentHistory " ++ show num)
 
     -- Jump to a specific frame
     Just (JumpTo n)              -> do running <- (historyIsRunning . simHistory) <$> get
@@ -158,7 +158,7 @@ reactimateDebugStep = do
     Just DeleteTrace             -> do simEmptyHistory
                                        simSendEvent "CurrentFrameChanged"
                                        simSendEvent "HistoryChanged"
- 
+
     Just (LoadTraceFromString s) -> do simPrint "Loading Trace from string"
                                        case maybeRead s of
                                          Nothing -> simPrint "Could not read a trace"
@@ -175,14 +175,14 @@ reactimateDebugStep = do
 
                                            showInput <- (dumpInput . simPrefs) <$> get
                                            when showInput $ simPrint $ show a'
-                                      
+
                                            simModifyHistory (\h -> historyReplaceInputDTimeAt h f dt a')
                                          else do
                                            a         <- simSense
 
                                            showInput <- (dumpInput . simPrefs) <$> get
                                            when showInput $ simPrint $ show a
-                                      
+
                                            simModifyHistory (\h -> historyReplaceInputAt h f a)
 
     Just (GetTrace)              -> do simTrace <- simGetTrace
@@ -231,7 +231,7 @@ reactimateDebugStep = do
       -- Step
       simState <- get
       history  <- getSimHistory
-      a0 <- simSense 
+      a0 <- simSense
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
       let sf       = fromLeft (getCurSF history)
@@ -249,7 +249,7 @@ reactimateDebugStep = do
     skip0 = do
       simState <- get
       history  <- getSimHistory
-      a0 <- simSense 
+      a0 <- simSense
       when (dumpInput (simPrefs simState)) $ simPrint $ show a0
 
       let sf   = fromLeft (getCurSF history)
@@ -356,7 +356,7 @@ simActuate c b = get >>= \s -> let (_, _, op) = simOps s in lift (op c b)
 simFinish :: SimState p a b -> SimState p a b
 simFinish simState = simState { simFinished = True }
 
-type SimMonad p a b = StateT (SimState p a b) IO 
+type SimMonad p a b = StateT (SimState p a b) IO
 
 -- | Obtain a command from the command queue, polling the communication
 --   bridge if the queue is empty.
@@ -528,7 +528,7 @@ historyIsRunning history = isRight (getCurSF history)
 -- | Replace the input for a given frame/sample
 historyReplaceInputAt :: History a b -> Int -> a -> History a b
 historyReplaceInputAt history f a
-    | ns < f    = history 
+    | ns < f    = history
     | f == 0    = if isNothing (fst hs)
                     then history
                     else history { getHistory = (Just (a, sf0), ps) }
@@ -631,7 +631,7 @@ historyJumpTo :: History a b -> Int -> History a b
 historyJumpTo history n =
   case getHistory history of
     (Nothing,_)          -> history
-    (Just (a0, sf0), ps) -> 
+    (Just (a0, sf0), ps) ->
       if length ps + 1 > n
         then if n > 0
                then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps
@@ -644,7 +644,7 @@ historyDiscardFuture :: History a b -> Int -> History a b
 historyDiscardFuture history n =
   case getHistory history of
     (Nothing,_)          -> history
-    (Just (a0, sf0), ps) -> 
+    (Just (a0, sf0), ps) ->
       if length ps + 1 > n
         then if n > 0
                then let ((_a,_dt, sf'):prevs@((lastInput, _, _):_)) = takeLast n ps

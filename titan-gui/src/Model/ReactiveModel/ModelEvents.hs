@@ -10,6 +10,7 @@ data ModelEvent = UncapturedEvent
                 | Initialised
                 | SelectedFrameChanged
                 | SelectedFrameInputChanged
+                | FramesChanged
  deriving (Eq,Ord)
 
 instance GRM.Event ModelEvent where
