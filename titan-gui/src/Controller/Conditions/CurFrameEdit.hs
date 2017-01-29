@@ -14,7 +14,6 @@ import System.IO
 import CombinedEnvironment
 import IOBridge
 
-
 installCondition :: CEnv -> IO ()
 installCondition cenv = do
 --  installConditionInput       cenv
