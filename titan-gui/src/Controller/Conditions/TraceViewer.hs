@@ -78,8 +78,8 @@ defaultRenderSettingsF = \c ->
                          | fError c          -> (0.9, 0.2, 0.1, 0.9)
                          | (not $ fCached c) -> (0.9, 0.9, 0.9, 1.0)
                          | otherwise         -> (0.1, 0.9, 0.1, 0.9)
-    , renderDot     = if | fBreakpoint c   -> True
-                         | otherwise       -> False
-    , renderLetter  = if | fError c        -> Just 'X'
-                         | otherwise       -> Nothing
+    , renderDot     = if | fBreakpoint c     -> True
+                         | otherwise         -> False
+    , renderLetter  = if | fError c          -> Just 'X'
+                         | otherwise         -> Nothing
     }
