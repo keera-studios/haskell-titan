@@ -43,10 +43,11 @@ installTraceViewer cenv = do
 installTraceViewerSelection :: CEnv -> StreamChart Frame -> IO ()
 installTraceViewerSelection cenv streamChart = do
 
+  let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
+  let framesField'   = mkFieldAccessor framesField        (model cenv)
+
   -- TODO: Make streamchart reactive
   streamChartOnButtonEvent streamChart $ \press p -> do
-    let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
-        framesField'   = mkFieldAccessor framesField        (model cenv)
     fs <- reactiveValueRead (mkFieldAccessor framesField (model cenv))
     if (p >= length fs || p < 0)
       then do putStrLn "Out of range"
@@ -64,9 +65,9 @@ installTraceViewerSelection cenv streamChart = do
 installTraceViewerFrames :: CEnv -> StreamChart Frame -> IO ()
 installTraceViewerFrames cenv streamChart = do
   -- Debug
-  let framesField = mkFieldAccessor framesField (model cenv)
-  framesField =:> wrapMW (onViewAsync . streamChartSetList streamChart)
-  framesField =:> wrapMW (\fs -> putStrLn $ "Frames changed:" ++ show fs)
+  let framesField' = mkFieldAccessor framesField (model cenv)
+  framesField' =:> wrapMW (onViewAsync . streamChartSetList streamChart)
+  framesField' =:> wrapMW (\fs -> putStrLn $ "Frames changed:" ++ show fs)
 
 -- | This funciton determines the style of the stream chart based on the kind
 -- of frame.
