@@ -200,6 +200,7 @@ reactimateDebugStep = do
                                          Just a  -> simModifyHistory (\h -> historyReplaceInputAt h f a)
 
     Just (GetGTime f)            -> do e <- (`historyGetGTime` f) <$> getSimHistory
+                                       simPrint $ "Want to send GTime for frame " ++ show f ++ ", which is " ++ show e
                                        simSendMsg (show e)
 
     Just (GetDTime f)            -> do e <- (`historyGetDTime` f) <$> getSimHistory
@@ -565,7 +566,7 @@ historyGetGTime :: History a b -> Int -> Maybe DTime
 historyGetGTime history f =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
-      e               = if length dts >= f then Nothing else Just (sum (take f dts))
+      e               = if length dts < f then Nothing else Just (sum (take f dts))
   in e
 
 -- | Get the time delta for a given frame
@@ -573,7 +574,7 @@ historyGetDTime :: History a b -> Int -> Maybe DTime
 historyGetDTime history f =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
-      e               = if length dts >= f then Nothing else Just (dts !! f)
+      e               = if length dts < f then Nothing else Just (dts !! f)
   in e
 
 -- | Get the input for a given frame
