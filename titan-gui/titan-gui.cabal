@@ -30,7 +30,7 @@ data-files: data/*.glade
 
 executable titan-gui
   main-is:             Main.hs
-  ghc-options:         -threaded -Wall
+  ghc-options:         -threaded -Wall -O2
   build-depends:       base >=4.7 && < 4.11,
                        keera-hails-reactivevalues,
                        keera-hails-mvc-controller,
