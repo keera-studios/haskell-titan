@@ -6,6 +6,7 @@ import Control.Monad
 import Data.IORef
 import Data.Maybe
 import FRP.Yampa
+import System.IO
 
 data RecordMode = RecordReadOnly
                 | RecordWriteOnly
@@ -28,10 +29,11 @@ reactimateRecord :: (Read a, Show a)
 reactimateRecord Nothing sense0 sense actuate sf = reactimate sense0 sense actuate sf
 reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
   samples   <- (maybeRead =<<) <$> (catch (Just <$> readFile fp) (\(e :: IOException) -> return Nothing))
+  hPutStrLn stderr (show samples)
 
   -- Read from here
   sample0Ref <- newIORef (fmap fst samples)
-  samplesRef <- newIORef (fromMaybe [] $ fmap snd samples)
+  samplesRef <- newIORef (let ss = fromMaybe [] $ fmap snd samples in length ss `seq` ss)
 
   -- Write into here
   newSample0Ref <- newIORef Nothing
@@ -75,11 +77,11 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
           curSamples <- readIORef newSamplesRef
           case curSample0 of
             Nothing -> return ()
-            Just s0 -> writeFile fp (show (s0, curSamples))
+            Just s0 -> length curSamples `seq` writeFile fp (show (s0, curSamples))
         return last
 
-  reactimate newSense0 newSense newActuate sf
+  (maybe 0 (length.snd) samples) `seq` 
+    reactimate newSense0 newSense newActuate sf
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
-
