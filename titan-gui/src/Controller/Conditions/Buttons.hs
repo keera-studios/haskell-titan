@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Controller.Conditions.BtnStep where
+module Controller.Conditions.Buttons where
 
 import Control.Applicative
 import Control.Exception
