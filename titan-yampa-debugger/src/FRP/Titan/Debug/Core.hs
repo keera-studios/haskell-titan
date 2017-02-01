@@ -301,12 +301,12 @@ reactimateDebugStep = do
 
     stepG = do running <- (historyIsRunning . simHistory) <$> get
                r <- if running then stepRR step1 else (\(a,b) -> (a, Nothing, b)) <$> step0
-               simSendMsg "StepDone"
+               -- simSendMsg "StepDone"
                return r
 
     skipG = do running <- (historyIsRunning . simHistory) <$> get
                r <- if running then stepRR skip1 else (\(a,b) -> (a, Nothing, b)) <$> skip0
-               simSendMsg "SkipDone"
+               -- simSendMsg "SkipDone"
                return r
 
     checkCond p dt a0 b0 = do
@@ -581,7 +581,8 @@ historyGetGTime :: History a b -> Int -> Maybe DTime
 historyGetGTime history f =
   let (Just (a0, sf0), ps) = getHistory history
       dts             = 0 : map (\(_,dt,_) -> dt) ps
-      e               = if length dts < f then Nothing else Just (sum (take f dts))
+      l               = length dts
+      e               = if l < f then Nothing else Just (sum (drop (l-f) dts))
   in e
 
 -- | Get the time delta for a given frame
