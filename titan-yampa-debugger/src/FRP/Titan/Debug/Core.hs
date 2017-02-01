@@ -1,10 +1,10 @@
-{-# LANGUAGE FlexibleInstances                 #-}
-{-# LANGUAGE TypeSynonymInstances              #-}
-{-# LANGUAGE MultiParamTypeClasses             #-}
-{-# LANGUAGE FunctionalDependencies            #-}
-{-# LANGUAGE ScopedTypeVariables               #-}
 {-# LANGUAGE AllowAmbiguousTypes               #-}
+{-# LANGUAGE FlexibleInstances                 #-}
+{-# LANGUAGE FunctionalDependencies            #-}
+{-# LANGUAGE MultiParamTypeClasses             #-}
 {-# LANGUAGE MultiWayIf                        #-}
+{-# LANGUAGE ScopedTypeVariables               #-}
+{-# LANGUAGE TypeSynonymInstances              #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind -Wall #-}
 
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
