@@ -66,7 +66,7 @@ installConditionShowTime cenv = do
 
 installConditionShowDTime cenv = do
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
-  txtFrameDTime' <- entryTextReactive <$> txtFrameTime (uiBuilder (view cenv))
+  txtFrameDTime' <- entryTextReactive <$> txtFrameDTime (uiBuilder (view cenv))
 
   curFrameField' =:> (wrapMW $ \f ->
    case f of
