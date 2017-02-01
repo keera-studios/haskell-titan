@@ -1,4 +1,5 @@
-{-# LANGUAGE MultiWayIf #-}
+-- | The TraceViewer contains the rules that create and keep the
+--   GUI stream widget in sync with the trace in the model.
 module Controller.Conditions.TraceViewer where
 
 import Data.ReactiveValue
@@ -11,43 +12,21 @@ import Model.Model
 import View.Objects
 
 installCondition :: CEnv -> IO ()
-installCondition cenv =
-  installTraceViewer cenv
-
--- TODO: Move this to the View
-installTraceViewer :: CEnv -> IO ()
-installTraceViewer cenv = do
-
-  -- Initialize stream chart
-  streamChart <- streamChartNew :: IO (StreamChart Frame)
-  widgetSetSizeRequest streamChart 10000 10000
-
-  -- Add stream chart to view
-  -- viewport `onResize` (do (w,h) <- widgetGetSize window
-  --                       adjustmentSetPageSize adjustX w
-  --                       adjustmentSetPageSize adjustY h)
-  -- containerAdd viewport streamChart
-  -- containerAdd sw viewport
-  sw  <- scrollFrameSelection (uiBuilder (view cenv))
-  scrolledWindowAddWithViewport sw streamChart
-
-  -- Set rendering properties
-  streamChartSetStyle streamChart defaultRenderSettingsF
-
-  -- Attach reactive rules
-  installTraceViewerSelection cenv streamChart
-  installTraceViewerFrames    cenv streamChart
+installCondition cenv = do
+  installTraceViewerSelection cenv
+  installTraceViewerFrames    cenv
 
 -- | Install Rule that keeps the user selection in the view in sync
 -- with the selection in the model.
-installTraceViewerSelection :: CEnv -> StreamChart Frame -> IO ()
-installTraceViewerSelection cenv streamChart = do
+installTraceViewerSelection :: CEnv -> IO ()
+installTraceViewerSelection cenv = do
+  let traceViewer = streamChart (view cenv)
 
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   let framesField'   = mkFieldAccessor framesField        (model cenv)
 
   -- TODO: Make streamchart reactive
-  streamChartOnButtonEvent streamChart $ \press p -> do
+  streamChartOnButtonEvent traceViewer $ \press p -> do
     fs <- reactiveValueRead (mkFieldAccessor framesField (model cenv))
     if (p >= length fs || p < 0)
       then do putStrLn "Out of range"
@@ -62,14 +41,15 @@ installTraceViewerSelection cenv streamChart = do
 
 -- | Install Rule that keeps the frames model field in sync with the frames in
 -- the view.
-installTraceViewerFrames :: CEnv -> StreamChart Frame -> IO ()
-installTraceViewerFrames cenv streamChart = do
+installTraceViewerFrames :: CEnv -> IO ()
+installTraceViewerFrames cenv = do
+  let traceViewer = streamChart (view cenv)
   -- Debug
   let framesField'   = mkFieldAccessor framesField        (model cenv)
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   let curSimFrame'   = mkFieldAccessor curSimFrameField   (model cenv)
   liftR3 markSelectedFrame curFrameField' curSimFrame' framesField'
-    =:> wrapMW (onViewAsync . streamChartSetList streamChart)
+    =:> wrapMW (onViewAsync . streamChartSetList traceViewer)
   framesField' =:> wrapMW (\fs -> putStrLn $ "Frames changed:" ++ show fs)
 
 markSelectedFrame :: Maybe Int -> Maybe Int -> [Frame] -> [Frame]
@@ -82,20 +62,3 @@ markSelectedFrame c s (f:fs) = mark f : markSelectedFrame c' s' fs
     c'           = toJust $ maybe (-1) (\x -> x - 1) c
     s'           = toJust $ maybe (-1) (\x -> x - 1) s
     toJust n = if n < 0 then Nothing else Just n
-
--- | This funciton determines the style of the stream chart based on the kind
--- of frame.
-defaultRenderSettingsF :: Frame -> StreamChartStyle
-defaultRenderSettingsF = \c ->
-  StreamChartStyle
-    { renderFGColor = (0.5, 0.6, 0.7, 1.0)
-    , renderBGColor = if | fSelected c       -> (0.8, 0.8, 0.8, 0.9)
-                         | fCurrent c        -> (1.0, 0.6, 0.0, 0.9)
-                         | fError c          -> (0.9, 0.2, 0.1, 0.9)
-                         | (not $ fCached c) -> (0.9, 0.9, 0.9, 1.0)
-                         | otherwise         -> (0.1, 0.9, 0.1, 0.9)
-    , renderDot     = if | fBreakpoint c     -> True
-                         | otherwise         -> False
-    , renderLetter  = if | fError c          -> Just 'X'
-                         | otherwise         -> Nothing
-    }
