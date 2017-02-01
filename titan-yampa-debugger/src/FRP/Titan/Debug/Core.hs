@@ -28,6 +28,7 @@ module FRP.Titan.Debug.Core
 
 import Control.Applicative       ((<$>))
 import Control.Monad
+import Control.Monad.IfElse
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Maybe
@@ -75,7 +76,7 @@ reactimateDebugStep :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a
 reactimateDebugStep = do
   simState <- get
   command  <- simGetCommand
-
+  awhen command $ \command' -> simPrint ("Executing command " ++ showCommand command')
   case command of
 
     Nothing   -> return ()
@@ -112,7 +113,7 @@ reactimateDebugStep = do
                                                          (Just dt, Right (Just sf1)) -> sfTF' sf1 dt a0
 
                                        showInput <- (dumpInput . simPrefs) <$> get
-                                       when showInput $ simPrint $ show a0
+                                       when showInput $ simPrint ("Redo from input " ++ show a0)
 
                                        last <- simActuate  True b0
                                        when last (modify simFinish)
@@ -124,7 +125,7 @@ reactimateDebugStep = do
                                        a <- if running then snd <$> simSense1 False else Just <$> simSense
 
                                        showInput <- (dumpInput . simPrefs) <$> get
-                                       when showInput $ simPrint $ show a
+                                       when showInput $ simPrint ("Skip with input " ++ show a)
 
                                        simSendEvent    "CurrentFrameChanged"
 
@@ -162,7 +163,7 @@ reactimateDebugStep = do
                                        simSendEvent "CurrentFrameChanged"
                                        simSendEvent "HistoryChanged"
 
-    Just (LoadTraceFromString s) -> do simPrint "Loading Trace from string"
+    Just (LoadTraceFromString s) -> do simPrint "Loading Trace from String"
                                        case maybeRead s of
                                          Nothing -> simPrint "Could not read a trace"
                                          Just s  -> do simPrint "Replacing history"
@@ -215,9 +216,11 @@ reactimateDebugStep = do
 
     Just GetCurrentTime          -> do num <- historyGetCurrentTime <$> getSimHistory
                                        simSendMsg  ("CurrentTime " ++ show num)
+                                       simPrint ("Sending current time " ++ show num)
 
     Just GetCurrentFrame         -> do num <- historyGetCurrentFrame <$> getSimHistory
                                        simSendMsg  ("CurrentFrame " ++ show num)
+                                       simPrint ("Sending current frame " ++ show num)
 
     Just (SetPrefDumpInput b)    -> do modify (\s -> s { simPrefs = (simPrefs s) { dumpInput = b } })
 
@@ -246,7 +249,7 @@ reactimateDebugStep = do
       simSendEvent "CurrentFrameChanged"
       simSendEvent "HistoryChanged"
       simModifyHistory (const (mkHistory (a0, sf) sf' a0))
-      -- return (a0, sf', b0)
+
       return (a0, b0)
 
     -- skip0 :: IO (a, SF' a b, b)
@@ -444,6 +447,10 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | Ping                       -- ^ Debugging: send a pong back to the GUI
  deriving (Eq, Read, Show)
 
+-- | Convenince to show commands in the debug log
+showCommand (LoadTraceFromString s) = "LoadTraceFromString <length: "  ++ show (length s) ++ " chars>"
+showCommand c                       = show c
+
 -- True if the command should make the simulator stop playing
 stopPlayingCommand :: Command p -> Bool
 stopPlayingCommand (Step)                  = True
@@ -490,6 +497,7 @@ hAppendCommand cmd = modify
 -- | Obtain a command from the command queue, polling the communication
 --   bridge if the queue is empty.
 getCommand :: (Read a, Show a) => ExternalBridge -> [a] -> IO (Maybe a, [a])
+-- getCommand bridge (c:cs) = return (Just c, cs)
 getCommand bridge cmds = do
   mLines <- filter (not . null) <$> getAllMessages bridge
   let cmLines = map maybeRead mLines

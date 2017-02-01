@@ -18,7 +18,7 @@ height = 480
 
 main = do
   timeRef <- newIORef (0 :: Int)
-  bridge <- mkThemisCommTCPBridge 
+  bridge <- mkTitanCommTCPBridge
   reactimateControl
              bridge                         -- Communication channels
              defaultPreferences             -- Simulation preferences
