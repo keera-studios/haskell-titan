@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Controller.Conditions.CurFrameEdit where
+module Controller.Conditions.CurFrameInfo where
 
 import Control.Applicative
 import Control.Exception
@@ -52,7 +52,7 @@ installConditionShowTime cenv = do
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   txtFrameTime' <- entryTextReactive <$> txtFrameTime (uiBuilder (view cenv))
 
-  curFrameField' =:> (wrapMW $ \f -> 
+  curFrameField' =:> (wrapMW $ \f ->
    case f of
     Just ix -> do
       let command = "GetGTime " ++ show (ix :: Int)
@@ -68,7 +68,7 @@ installConditionShowDTime cenv = do
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   txtFrameDTime' <- entryTextReactive <$> txtFrameTime (uiBuilder (view cenv))
 
-  curFrameField' =:> (wrapMW $ \f -> 
+  curFrameField' =:> (wrapMW $ \f ->
    case f of
     Just ix -> do
       let command = "GetDTime " ++ show (ix :: Int)
