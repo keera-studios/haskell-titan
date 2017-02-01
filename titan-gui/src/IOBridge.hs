@@ -4,6 +4,7 @@ module IOBridge where
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
+import Control.Monad.IfElse
 import Data.Bits
 import Data.List
 import Data.IORef
@@ -14,6 +15,7 @@ import Network.Socket
 import System.IO
 import Foreign.Ptr
 
+-- | Bridge between the local debugger and the debugging GUI
 type IOBridge = IORef IOBridge'
 
 data IOBridge' = IOBridge'
@@ -23,24 +25,30 @@ mkDefaultIOBridge :: IO IOBridge
 mkDefaultIOBridge =
   newIORef $ IOBridge' { yampaSocket = Nothing }
 
-data YampaHandle =
-    YampaHandle { commHandle  :: Handle
-                , eventHandle :: Handle
-                }
+-- | Communication Handles
+data YampaHandle = YampaHandle
+  { commHandle  :: Handle
+  , eventHandle :: Handle
+  }
 
-openYampaHandle :: IO YampaHandle      -- ^ Handle to use for logging
-openYampaHandle = do
-  h1 <- openYampaCommHandle
-  h2 <- openYampaEventHandle
-  return $ YampaHandle h1 h2
+-- | Create communication handles to talk to Yampa simulation
+--
+-- TODO: Make this safe and may return type Maybe
+openYampaHandle :: IO YampaHandle -- ^ Handles to communicate with FRP simulation
+openYampaHandle = YampaHandle <$> openYampaCommHandle <*> openYampaEventHandle
 
-openYampaCommHandle :: IO Handle      -- ^ Handle to use for logging
+-- | Open Sync communication channel with FRP simulation
+
+openYampaCommHandle :: IO Handle -- ^ Handle to send commands and receive
+                                 --    results from FRP debugger.
 openYampaCommHandle = do
+  -- Shamelessly taken from RWH
+
   let hostname = "localhost"
       port     = "8081"
-  -- Look up the hostname and port.  Either raises an exception
-  -- or returns a nonempty list.  First element in that list
-  -- is supposed to be the best option.
+  -- Look up the hostname and port. Either raises an exception or returns a
+  -- nonempty list. First element in that list is supposed to be the best
+  -- option.
   addrinfos <- getAddrInfo Nothing (Just hostname) (Just port)
   let serveraddr = head addrinfos
 
@@ -60,7 +68,7 @@ openYampaCommHandle = do
   -- We're going to set buffering to BlockBuffering and then
   -- explicitly call hFlush after each message, below, so that
   -- messages get logged immediately
-  hSetBuffering h LineBuffering
+  hSetBuffering h NoBuffering
 
   -- Save off the socket, program name, and server address in a handle
   return h
@@ -91,7 +99,7 @@ openYampaEventHandle = do
   -- We're going to set buffering to BlockBuffering and then
   -- explicitly call hFlush after each message, below, so that
   -- messages get logged immediately
-  hSetBuffering h LineBuffering
+  hSetBuffering h NoBuffering
 
   -- Save off the socket, program name, and server address in a handle
   return h
@@ -99,11 +107,10 @@ openYampaEventHandle = do
 stopYampaSocket ioBridgeRef = do
   ioBridge <- readIORef ioBridgeRef
   let mSocket = yampaSocket ioBridge
-  case mSocket of
-    Nothing     -> return ()
-    Just socket -> do hClose (commHandle socket)
-                      let ioBridge' = ioBridge { yampaSocket = Nothing }
-                      writeIORef ioBridgeRef ioBridge'
+  awhen mSocket $ \socket -> do
+    hClose (commHandle socket)
+    let ioBridge' = ioBridge { yampaSocket = Nothing }
+    writeIORef ioBridgeRef ioBridge'
 
 startYampaSocket ioBridgeRef = do
   ioBridge <- readIORef ioBridgeRef
@@ -121,16 +128,14 @@ sendToYampaSocketSync ioBridgeRef msg =
 
 sendToYampaSocketSync' ioBridgeRef msg = do
   ioBridge <- readIORef ioBridgeRef
-  let mSocket = yampaSocket ioBridge
-  case mSocket of
-    Nothing     -> return Nothing
-    Just socket -> do hPutStrLn stderr ("Debug: Sending " ++ msg)
-                      hPutStrLn (commHandle socket) msg
-                      hFlush (commHandle socket)
-                      waitForInput (commHandle socket) 10000
-                      s <- hGetLine (commHandle socket)
-                      hPutStrLn stderr ("Debug: received " ++ s)
-                      return (Just s)
+  whenMaybe (yampaSocket ioBridge) $ \socket -> do
+    hPutStrLn stderr ("Debug: Sending " ++ msg)
+    hPutStrLn (commHandle socket) msg
+    hFlush (commHandle socket)
+    waitForInput (commHandle socket) 10000
+    s <- hGetLine (commHandle socket)
+    hPutStrLn stderr ("Debug: received " ++ s)
+    return (Just s)
 
 getFromYampaSocketSync ioBridgeRef =
   catch (getFromYampaSocketSync' ioBridgeRef)
@@ -140,10 +145,8 @@ getFromYampaSocketSync ioBridgeRef =
 getFromYampaSocketSync' ioBridgeRef = do
   ioBridge <- readIORef ioBridgeRef
   let mSocket = yampaSocket ioBridge
-  case mSocket of
-    Nothing     -> return Nothing
-    Just socket -> do s <- hGetLine  (commHandle socket)
-                      return (Just s)
+  whenMaybe (yampaSocket ioBridge) $ \socket ->
+    Just <$> hGetLine (commHandle socket)
 
 getFromEventSocketSync ioBridgeRef =
   catch (getFromEventSocketSync' ioBridgeRef)
@@ -152,16 +155,14 @@ getFromEventSocketSync ioBridgeRef =
 
 getFromEventSocketSync' ioBridgeRef = do
   ioBridge <- readIORef ioBridgeRef
-  let mSocket = yampaSocket ioBridge
-  case mSocket of
-    Nothing     -> return Nothing
-    Just socket -> do eof <- hIsEOF (eventHandle socket)
-                      if eof
-                        then do putStrLn "Got nothing in the event log"
-                                return Nothing
-                        else do s <- hGetLine  (eventHandle socket)
-                                putStrLn $ "Event log got: " ++ show s
-                                return (Just s)
+  whenMaybe (yampaSocket ioBridge) $ \socket -> do
+    eof <- hIsEOF (eventHandle socket)
+    if eof
+      then do putStrLn "Got nothing in the event log"
+              return Nothing
+      else do s <- hGetLine  (eventHandle socket)
+              putStrLn $ "Event log got: " ++ show s
+              return (Just s)
 
 sendToYampaSocketAsync ioBridgeRef msg =
   catch (sendToYampaSocketAsync' ioBridgeRef msg)
@@ -171,12 +172,15 @@ sendToYampaSocketAsync ioBridgeRef msg =
 sendToYampaSocketAsync' ioBridgeRef msg = do
   ioBridge <- readIORef ioBridgeRef
   let mSocket = yampaSocket ioBridge
-  case mSocket of
-    Nothing     -> return ()
-    Just socket -> hPutStrLn (commHandle socket) msg
+  awhen mSocket $ \socket ->
+    hPutStrLn (commHandle socket) msg
 
 waitForInput handle n = do
   eof <- hIsEOF handle
   when eof $ do
     threadDelay n
     waitForInput handle n
+
+whenMaybe :: Maybe a -> (a -> IO (Maybe b)) -> IO (Maybe b)
+whenMaybe Nothing  _ = return Nothing
+whenMaybe (Just x) f = f x

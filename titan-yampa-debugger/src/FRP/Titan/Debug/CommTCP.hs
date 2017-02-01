@@ -1,8 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Communicate Yampa game and debugging GUI via TCP
 module FRP.Titan.Debug.CommTCP
-    ( mkThemisCommTCPBridge
-    )
+    ( mkThemisCommTCPBridge )
   where
 
 -- External modules
@@ -62,129 +61,120 @@ mkSendEvent channel = void $
     mapM_ (putStrLn . ("Sending to the event log: " ++) . show) var
     mapM_ (hPutStrLn handle) var
 
-type HandlerFunc = SockAddr -> String -> IO [String]
-type HandlerFunc' = SockAddr -> Handle -> IO ()
-
-serveAsync :: String              -- ^ Port number or name; 514 is default
-           -> HandlerFunc'        -- ^ Function to handle incoming messages
+serveAsync :: String                          -- ^ Port number or name; 514 is default
+           -> (SockAddr -> Handle -> IO ())   -- ^ Function to handle incoming messages
            -> IO ()
 serveAsync port handlerfunc = withSocketsDo $
-    do -- Look up the port.  Either raises an exception or returns
-       -- a nonempty list.  
-       addrinfos <- getAddrInfo 
-                    (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                    Nothing (Just port)
-       let serveraddr = head addrinfos
+  do -- Look up the port.  Either raises an exception or returns
+     -- a nonempty list.
+     addrinfos <- getAddrInfo
+                  (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                  Nothing (Just port)
+     let serveraddr = head addrinfos
 
-       -- Create a socket
-       sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+     -- Create a socket
+     sock <- socket (addrFamily serveraddr) Stream defaultProtocol
 
-       -- Bind it to the address we're listening to
-       bindSocket sock (addrAddress serveraddr)
+     -- Bind it to the address we're listening to
+     bindSocket sock (addrAddress serveraddr)
 
-       -- Start listening for connection requests.  Maximum queue size
-       -- of 5 connection requests waiting to be accepted.
-       listen sock 5
+     -- Start listening for connection requests.  Maximum queue size
+     -- of 5 connection requests waiting to be accepted.
+     listen sock 5
 
-       -- Create a lock to use for synchronizing access to the handler
-       lock <- newMVar ()
+     -- Create a lock to use for synchronizing access to the handler
+     lock <- newMVar ()
 
-       -- Loop forever waiting for connections.  Ctrl-C to abort.
-       procRequests lock sock
+     -- Loop forever waiting for connections.  Ctrl-C to abort.
+     procRequests lock sock
 
-    where
-          -- | Process incoming connection requests
-          procRequests :: MVar () -> Socket -> IO ()
-          procRequests lock mastersock = do
-            (connsock, clientaddr) <- accept mastersock
-            -- handle lock clientaddr
-            --    "syslogtcpserver.hs: client connnected"
-            forkIO $ procMessages lock connsock clientaddr
-            procRequests lock mastersock
+  where
+    -- | Process incoming connection requests
+    procRequests :: MVar () -> Socket -> IO ()
+    procRequests lock mastersock = do
+      (connsock, clientaddr) <- accept mastersock
+      -- handle lock clientaddr
+      --    "syslogtcpserver.hs: client connnected"
+      forkIO $ procMessages lock connsock clientaddr
+      procRequests lock mastersock
 
-          -- | Process incoming messages
-          procMessages :: MVar () -> Socket -> SockAddr -> IO ()
-          procMessages lock connsock clientaddr = do
-            connhdl <- socketToHandle connsock ReadWriteMode
-            hSetBuffering connhdl LineBuffering
-            hPutStrLn connhdl "DHello 0"
-            hFlush connhdl
-            handle lock clientaddr connhdl
-            hClose connhdl
+    -- | Process incoming messages
+    procMessages :: MVar () -> Socket -> SockAddr -> IO ()
+    procMessages lock connsock clientaddr = do
+      connhdl <- socketToHandle connsock ReadWriteMode
+      hSetBuffering connhdl NoBuffering
+      hPutStrLn connhdl "DHello 0"
+      hFlush connhdl
+      handle lock clientaddr connhdl
+      hClose connhdl
 
-          -- Lock the handler before passing data to it.
-          handle :: MVar () -> HandlerFunc'
-          -- This type is the same as
-          -- handle :: MVar () -> SockAddr -> String -> IO ()
-          handle lock clientaddr handle =
-              withMVar lock 
-                 (\a -> handlerfunc clientaddr handle >> return a)
+    -- Lock the handler before passing data to it.
+    handle :: MVar () -> SockAddr -> Handle -> IO ()
+    -- This type is the same as
+    -- handle :: MVar () -> SockAddr -> String -> IO ()
+    handle lock clientaddr handle =
+        withMVarLock lock (handlerfunc clientaddr handle)
 
-serveSync :: String              -- ^ Port number or name; 514 is default
-           -> HandlerFunc         -- ^ Function to handle incoming messages
-           -> IO ()
+serveSync :: String                                 -- ^ Port number or name; 514 is default
+          -> (SockAddr -> String -> IO [String])   -- ^ Function to handle incoming messages
+          -> IO ()
 serveSync port handlerfunc = withSocketsDo $
-    do -- Look up the port.  Either raises an exception or returns
-       -- a nonempty list.  
-       addrinfos <- getAddrInfo 
-                    (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
-                    Nothing (Just port)
-       let serveraddr = head addrinfos
+  do -- Look up the port.  Either raises an exception or returns
+     -- a nonempty list.
+     addrinfos <- getAddrInfo
+                  (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                  Nothing (Just port)
+     let serveraddr = head addrinfos
 
-       -- Create a socket
-       sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+     -- Create a socket
+     sock <- socket (addrFamily serveraddr) Stream defaultProtocol
 
-       -- Bind it to the address we're listening to
-       bindSocket sock (addrAddress serveraddr)
+     -- Bind it to the address we're listening to
+     bindSocket sock (addrAddress serveraddr)
 
-       -- Start listening for connection requests.  Maximum queue size
-       -- of 5 connection requests waiting to be accepted.
-       listen sock 5
+     -- Start listening for connection requests.  Maximum queue size
+     -- of 5 connection requests waiting to be accepted.
+     listen sock 5
 
-       -- Create a lock to use for synchronizing access to the handler
-       lock <- newMVar ()
+     -- Create a lock to use for synchronizing access to the handler
+     lock <- newMVar ()
 
-       -- Loop forever waiting for connections.  Ctrl-C to abort.
-       procRequests lock sock
+     -- Loop forever waiting for connections.  Ctrl-C to abort.
+     procRequests lock sock
 
-    where
-          -- | Process incoming connection requests
-          procRequests :: MVar () -> Socket -> IO ()
-          procRequests lock mastersock = 
-              do (connsock, clientaddr) <- accept mastersock
-                 -- handle lock clientaddr
-                 --    "syslogtcpserver.hs: client connnected"
-                 forkIO $ procMessages lock connsock clientaddr
-                 procRequests lock mastersock
+  where
+    -- | Process incoming connection requests
+    procRequests :: MVar () -> Socket -> IO ()
+    procRequests lock mastersock = do
+      (connsock, clientaddr) <- accept mastersock
+      -- handle lock clientaddr
+      --    "syslogtcpserver.hs: client connnected"
+      forkIO $ procMessages lock connsock clientaddr
+      procRequests lock mastersock
 
-          -- | Process incoming messages
-          procMessages :: MVar () -> Socket -> SockAddr -> IO ()
-          procMessages lock connsock clientaddr =
-              do connhdl <- socketToHandle connsock ReadWriteMode
-                 putStrLn ("Connected " ++ show clientaddr)
-                 hSetBuffering connhdl LineBuffering
-                 hPutStrLn connhdl "Hello 0"
-                 hFlush connhdl
-                 let processMessage = do
-                       message   <- hGetLine connhdl
-                       responses <- handle lock clientaddr message
-                       mapM_ (\msg -> hPutStrLn connhdl msg >> hFlush connhdl) responses
-                       processMessage
-                 catch processMessage (\(e :: IOException) -> putStrLn "Disconnected")
-                 
-                 hClose connhdl
-                 -- handle lock clientaddr 
-                 --    "syslogtcpserver.hs: client disconnected"
+    -- | Process incoming messages
+    procMessages :: MVar () -> Socket -> SockAddr -> IO ()
+    procMessages lock connsock clientaddr = do
+      connhdl <- socketToHandle connsock ReadWriteMode
+      putStrLn ("Connected " ++ show clientaddr)
+      hSetBuffering connhdl NoBuffering
+      hPutStrLn connhdl "Hello 0"
+      hFlush connhdl
+      let processMessage = do
+            message   <- hGetLine connhdl
+            responses <- handle lock clientaddr message
+            mapM_ (\msg -> hPutStrLn connhdl msg >> hFlush connhdl) responses
+            processMessage
+      catch processMessage (\(e :: IOException) -> putStrLn "Disconnected")
 
-          -- Lock the handler before passing data to it.
-          handle :: MVar () -> HandlerFunc
-          -- This type is the same as
-          -- handle :: MVar () -> SockAddr -> String -> IO ()
-          handle lock clientaddr msg = do
-              a <- takeMVar lock
-              responses <- handlerfunc clientaddr msg 
-              putMVar lock a
-              return responses
+      hClose connhdl
+      -- handle lock clientaddr
+      --    "syslogtcpserver.hs: client disconnected"
+
+    -- Lock the handler before passing data to it.
+    handle :: MVar () -> SockAddr -> String -> IO [String]
+    handle lock clientaddr msg =
+      withMVarLock lock $ handlerfunc clientaddr msg
 
 -- * Aux
 
@@ -193,3 +183,10 @@ putInMVar :: MVar [String] -> String -> IO ()
 putInMVar mvar s = do
   ss <- takeMVar mvar
   putMVar mvar (ss ++ [s])
+
+withMVarLock :: MVar a -> IO b -> IO b
+withMVarLock lock io = do
+  a <- takeMVar lock
+  r <- io
+  putMVar lock a
+  return r
