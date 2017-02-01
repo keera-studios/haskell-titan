@@ -58,8 +58,11 @@ reactimateControl :: forall p a b
                   -> SF a b                         -- ^ FRP:   Signal Function that defines the program
                   -> IO ()
 reactimateControl bridge prefs cmds init sense actuate sf =
-  let history = mkEmptyHistory sf
-  in evalStateT run (SimState bridge prefs history cmds (init, sense, actuate) False)
+    evalStateT run simulationState
+  where
+    simulationState = SimState bridge prefs history cmds yampaIO False
+    history         = mkEmptyHistory sf
+    yampaIO         = (init, sense, actuate)
 
 -- | Run the debugger continuously until it finishes
 run :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
