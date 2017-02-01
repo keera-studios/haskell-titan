@@ -76,7 +76,7 @@ reactimateDebugStep :: (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a
 reactimateDebugStep = do
   simState <- get
   command  <- simGetCommand
-  awhen command $ \command' -> simPrint ("Executing command " ++ showCommand command')
+  awhen command $ \command' -> simPrint ("CORE: Executing command " ++ showCommand command')
   case command of
 
     Nothing   -> return ()
@@ -113,7 +113,7 @@ reactimateDebugStep = do
                                                          (Just dt, Right (Just sf1)) -> sfTF' sf1 dt a0
 
                                        showInput <- (dumpInput . simPrefs) <$> get
-                                       when showInput $ simPrint ("Redo from input " ++ show a0)
+                                       when showInput $ simPrint ("CORE: Redo from input " ++ show a0)
 
                                        last <- simActuate  True b0
                                        when last (modify simFinish)
@@ -125,7 +125,7 @@ reactimateDebugStep = do
                                        a <- if running then snd <$> simSense1 False else Just <$> simSense
 
                                        showInput <- (dumpInput . simPrefs) <$> get
-                                       when showInput $ simPrint ("Skip with input " ++ show a)
+                                       when showInput $ simPrint ("CORE: Skip with input " ++ show a)
 
                                        simSendEvent    "CurrentFrameChanged"
 
@@ -163,10 +163,10 @@ reactimateDebugStep = do
                                        simSendEvent "CurrentFrameChanged"
                                        simSendEvent "HistoryChanged"
 
-    Just (LoadTraceFromString s) -> do simPrint "Loading Trace from String"
+    Just (LoadTraceFromString s) -> do simPrint "CORE: Loading Trace from String"
                                        case maybeRead s of
-                                         Nothing -> simPrint "Could not read a trace"
-                                         Just s  -> do simPrint "Replacing history"
+                                         Nothing -> simPrint "CORE: Could not read a trace"
+                                         Just s  -> do simPrint "CORE: Replacing history"
                                                        simReplaceHistory s
 
     Just (IOSense f)             -> do running <- (historyIsRunning . simHistory) <$> get
@@ -178,14 +178,14 @@ reactimateDebugStep = do
                                            let a' = fromMaybe (fromJust $ getLastInput history) ma'
 
                                            showInput <- (dumpInput . simPrefs) <$> get
-                                           when showInput $ simPrint $ show a'
+                                           when showInput $ simPrint $ "CORE: IOSense " ++ show a'
 
                                            simModifyHistory (\h -> historyReplaceInputDTimeAt h f dt a')
                                          else do
                                            a         <- simSense
 
                                            showInput <- (dumpInput . simPrefs) <$> get
-                                           when showInput $ simPrint $ show a
+                                           when showInput $ simPrint $ "CORE: IOSense " ++ show a
 
                                            simModifyHistory (\h -> historyReplaceInputAt h f a)
 
@@ -204,7 +204,7 @@ reactimateDebugStep = do
                                          Just a  -> simModifyHistory (\h -> historyReplaceInputAt h f a)
 
     Just (GetGTime f)            -> do e <- (`historyGetGTime` f) <$> getSimHistory
-                                       simPrint $ "Want to send GTime for frame " ++ show f ++ ", which is " ++ show e
+                                       simPrint $ "CORE: Want to send GTime for frame " ++ show f ++ ", which is " ++ show e
                                        simSendMsg (show e)
 
     Just (GetDTime f)            -> do e <- (`historyGetDTime` f) <$> getSimHistory
@@ -216,11 +216,11 @@ reactimateDebugStep = do
 
     Just GetCurrentTime          -> do num <- historyGetCurrentTime <$> getSimHistory
                                        simSendMsg  ("CurrentTime " ++ show num)
-                                       simPrint ("Sending current time " ++ show num)
+                                       simPrint ("CORE: Sending current time " ++ show num)
 
     Just GetCurrentFrame         -> do num <- historyGetCurrentFrame <$> getSimHistory
                                        simSendMsg  ("CurrentFrame " ++ show num)
-                                       simPrint ("Sending current frame " ++ show num)
+                                       simPrint ("CORE: Sending current frame " ++ show num)
 
     Just (SetPrefDumpInput b)    -> do modify (\s -> s { simPrefs = (simPrefs s) { dumpInput = b } })
 
@@ -239,7 +239,7 @@ reactimateDebugStep = do
       simState <- get
       history  <- getSimHistory
       a0 <- simSense
-      when (dumpInput (simPrefs simState)) $ simPrint $ show a0
+      when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input: " ++ show a0
 
       let sf       = fromLeft (getCurSF history)
           tf0      = sfTF sf
@@ -257,7 +257,7 @@ reactimateDebugStep = do
       simState <- get
       history  <- getSimHistory
       a0 <- simSense
-      when (dumpInput (simPrefs simState)) $ simPrint $ show a0
+      when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input: " ++ show a0
 
       let sf   = fromLeft (getCurSF history)
           tf0  = sfTF sf
@@ -272,7 +272,7 @@ reactimateDebugStep = do
       simState <- get
       (a', dt, sf', b') <- stF
       simModifyHistory (`historyRecordFrame1` (a', dt, sf'))
-      when (dumpInput (simPrefs simState)) $ simPrint $ show a'
+      when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input " ++ show a'
       simSendEvent "CurrentFrameChanged"
       simSendEvent "HistoryChanged"
       return (a', Just dt, b')
@@ -300,17 +300,21 @@ reactimateDebugStep = do
       return (a', dt, sf', b')
 
     stepG = do running <- (historyIsRunning . simHistory) <$> get
-               if running then stepRR step1 else (\(a,b) -> (a, Nothing, b)) <$> step0
+               r <- if running then stepRR step1 else (\(a,b) -> (a, Nothing, b)) <$> step0
+               simSendMsg "StepDone"
+               return r
 
     skipG = do running <- (historyIsRunning . simHistory) <$> get
-               if running then stepRR skip1 else (\(a,b) -> (a, Nothing, b)) <$> skip0
+               r <- if running then stepRR skip1 else (\(a,b) -> (a, Nothing, b)) <$> skip0
+               simSendMsg "SkipDone"
+               return r
 
     checkCond p dt a0 b0 = do
       simState <- get
       -- Check condition
       let cond = evalPred p dt a0 b0
       when cond $ do
-        simPrint ("Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
+        simPrint ("CORE: Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
         simSendEvent  "ConditionMet"
       return cond
 

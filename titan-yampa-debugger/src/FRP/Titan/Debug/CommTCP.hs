@@ -7,10 +7,13 @@ module FRP.Titan.Debug.CommTCP
 -- External modules
 import Control.Concurrent
 import Control.Concurrent.MVar
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TChan
 import Control.Exception
 import Control.Monad
 import Data.Bits
 import Data.List
+import Data.Maybe
 import Network.BSD
 import Network.Socket
 import System.IO
@@ -21,38 +24,54 @@ import FRP.Titan.Debug.Comm
 -- | Create a communication bridge using a local TCP server.
 mkTitanCommTCPBridge :: IO ExternalBridge
 mkTitanCommTCPBridge = do
-  outChannel   <- newMVar []
-  eventChannel <- newMVar []
-  getChannel   <- newMVar []
+
+  -- The communication bridge is composed of two TCP sockets:
+  -- a sync one and an async one.
+  --
+  -- To control messages sent and received through these sockets,
+  -- three mvars are used:
+  -- - One for outgoing, sync messages  (out)
+  -- - One for outgoing, async messages (event)
+  -- - One for incoming, sync message   (get)
+  --
+  -- Sending and receiving messages is controlled via three MVars.
+  --
+  outChannel   <- atomically $ newTChan
+  eventChannel <- atomically $ newTChan
+  getChannel   <- atomically $ newTChan
   forkIO $ mkSendMsg outChannel getChannel
   forkIO $ mkSendEvent eventChannel
-  let sendMsg msg = do
-        msgs <- takeMVar outChannel
-        putMVar outChannel (msgs ++ [msg])
-      sendEvent msg = do
-        msgs <- takeMVar eventChannel
-        putMVar eventChannel (msgs ++ [msg])
-      getMsg = do
-        msgs <- takeMVar getChannel
-        case msgs of
-          []     -> putMVar getChannel [] >> return ""
-          (x:xs) -> putMVar getChannel xs >> return x
+  let sendMsg msg = do atomically $ writeTChan outChannel msg
+                       putStrLn $ "Wrote the sync message " ++ msg
+      sendEvent msg = do atomically $ writeTChan eventChannel msg
+                         putStrLn $ "Wrote the async message " ++ msg
+      getMsg = do a <- (fromMaybe "") <$> (atomically $ tryReadTChan getChannel)
+      -- getMsg = do a <- atomically $ readTChan getChannel
+                  when (not (null a)) $ putStrLn $ "Got the sync message " ++ show a
+                  return a
   return $ ExternalBridge errPrintLn sendMsg sendEvent getMsg
 
 -- | Send communication channel that takes messages from an MVar and pushes
 --   them out a socket.
-mkSendMsg :: MVar [String] -> MVar [String] -> IO ()
+mkSendMsg :: TChan String -> TChan String -> IO ()
 mkSendMsg outChannel getChannel = void $
-  forkIO $ serveSync "8081" $ \_ msg -> do
-    putInMVar getChannel msg
-    var <- takeMVar outChannel
-    putMVar outChannel []
-    return var
+  forkIO $ serveSync "8081" (\msg -> do atomically $ writeTChan getChannel msg) (atomically $ readTChanAll outChannel)
 
-serveSync :: String                                 -- ^ Port number or name; 514 is default
-          -> (SockAddr -> String -> IO [String])   -- ^ Function to handle incoming messages
+readTChanAll :: TChan a -> STM [a]
+readTChanAll tchan = reverse <$> readTChanAll' tchan []
+
+readTChanAll' :: TChan a -> [a] -> STM [a]
+readTChanAll' tchan acc = do
+  mval <- tryReadTChan tchan
+  case mval of
+    Nothing  -> return acc
+    Just val -> readTChanAll' tchan (val : acc)
+
+serveSync :: String             -- ^ Port number or name; 514 is default
+          -> (String -> IO ())  -- ^ Function to handle incoming messages
+          -> (IO [String])      -- ^ Function to obtain outgoing messages
           -> IO ()
-serveSync port handlerfunc = withSocketsDo $
+serveSync port handlerGet handlerSend = withSocketsDo $
   do -- Look up the port.  Either raises an exception or returns
      -- a nonempty list.
      addrinfos <- getAddrInfo
@@ -79,49 +98,61 @@ serveSync port handlerfunc = withSocketsDo $
   where
     -- | Process incoming connection requests
     procRequests :: MVar () -> Socket -> IO ()
-    procRequests lock mastersock = do
-      (connsock, clientaddr) <- accept mastersock
+    procRequests lock mastersock = forever $ void $ do
+      (connsock, _clientaddr) <- accept mastersock
       -- handle lock clientaddr
       --    "syslogtcpserver.hs: client connnected"
-      forkIO $ procMessages lock connsock clientaddr
-      procRequests lock mastersock
-
-    -- | Process incoming messages
-    procMessages :: MVar () -> Socket -> SockAddr -> IO ()
-    procMessages lock connsock clientaddr = do
       connhdl <- socketToHandle connsock ReadWriteMode
-      putStrLn ("Connected " ++ show clientaddr)
-      hSetBuffering connhdl NoBuffering
+      putStrLn ("Socket connected.")
+      hSetBuffering connhdl LineBuffering
       hPutStrLn connhdl "Hello 0"
       hFlush connhdl
-      let processMessage = do
+      t1 <- forkIO $ procSend lock connhdl
+      t2 <- forkIO $ procGet  lock connhdl
+      -- hClose connhdl
+      return ()
+
+    -- | Process incoming messages
+    procGet :: MVar () -> Handle -> IO ()
+    procGet lock connhdl = do
+      let processMessage = forever $ do
             message   <- hGetLine connhdl
-            responses <- handle lock clientaddr message
-            mapM_ (\msg -> hPutStrLn connhdl msg >> hFlush connhdl) responses
-            processMessage
+            handleGet lock message
       catch processMessage (\(e :: IOException) -> putStrLn "Disconnected")
 
-      hClose connhdl
+    -- | Process incoming messages
+    procSend :: MVar () -> Handle -> IO ()
+    procSend lock connhdl = do
+      let processMessage = forever $ do
+            responses  <- handleSend lock
+            mapM_ (\msg -> hPutStrLn connhdl msg >> hFlush connhdl) responses
+      catch processMessage (\(e :: IOException) -> putStrLn "Disconnected")
+
       -- handle lock clientaddr
       --    "syslogtcpserver.hs: client disconnected"
 
     -- Lock the handler before passing data to it.
-    handle :: MVar () -> SockAddr -> String -> IO [String]
-    handle lock clientaddr msg =
-      withMVarLock lock $ handlerfunc clientaddr msg
+    handleGet :: MVar () -> String -> IO ()
+    handleGet lock msg =
+      withMVarLock lock $ handlerGet msg
+
+    -- Lock the handler before passing data to it.
+    handleSend :: MVar () -> IO [String]
+    handleSend lock =
+      withMVarLock lock $ handlerSend
 
 -- | Event communication channel that takes event messages from an MVar and
 --   pushes them out a socket.
-mkSendEvent :: MVar [String] -> IO ()
+mkSendEvent :: TChan String -> IO ()
 mkSendEvent channel = void $
-  forkIO $ serveAsync "8082" $ \_ handle -> forever $ do
-    var <- takeMVar channel
-    putMVar channel []
-    mapM_ (putStrLn . ("Sending to the event log: " ++) . show) var
-    mapM_ (hPutStrLn handle) var
+  forkIO $ serveAsync "8082" $ \handle -> forever $ do
+    response <- atomically $ readTChan channel
+    putStrLn $ "Sending to the event log: " ++ show response
+    hPutStrLn handle response
+    hFlush handle
 
 serveAsync :: String                          -- ^ Port number or name; 514 is default
-           -> (SockAddr -> Handle -> IO ())   -- ^ Function to handle incoming messages
+           -> (Handle -> IO ())   -- ^ Function to handle incoming messages
            -> IO ()
 serveAsync port handlerfunc = withSocketsDo $
   do -- Look up the port.  Either raises an exception or returns
@@ -150,29 +181,29 @@ serveAsync port handlerfunc = withSocketsDo $
   where
     -- | Process incoming connection requests
     procRequests :: MVar () -> Socket -> IO ()
-    procRequests lock mastersock = do
-      (connsock, clientaddr) <- accept mastersock
+    procRequests lock mastersock = forever $ void $ do
+      (connsock, _clientaddr) <- accept mastersock
       -- handle lock clientaddr
       --    "syslogtcpserver.hs: client connnected"
-      forkIO $ procMessages lock connsock clientaddr
-      procRequests lock mastersock
+      forkIO $ procMessages lock connsock
 
     -- | Process incoming messages
-    procMessages :: MVar () -> Socket -> SockAddr -> IO ()
-    procMessages lock connsock clientaddr = do
+    procMessages :: MVar () -> Socket -> IO ()
+    procMessages lock connsock = do
       connhdl <- socketToHandle connsock ReadWriteMode
-      hSetBuffering connhdl NoBuffering
+      putStrLn ("Socket connected.")
+      hSetBuffering connhdl LineBuffering
       hPutStrLn connhdl "DHello 0"
       hFlush connhdl
-      handle lock clientaddr connhdl
+      handle lock connhdl
       hClose connhdl
 
     -- Lock the handler before passing data to it.
-    handle :: MVar () -> SockAddr -> Handle -> IO ()
+    handle :: MVar () -> Handle -> IO ()
     -- This type is the same as
     -- handle :: MVar () -> SockAddr -> String -> IO ()
-    handle lock clientaddr handle =
-      withMVarLock lock (handlerfunc clientaddr handle)
+    handle lock handle =
+      withMVarLock lock (handlerfunc handle)
 
 -- * Aux
 

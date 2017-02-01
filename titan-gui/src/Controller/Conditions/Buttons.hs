@@ -325,7 +325,7 @@ conditionVMDisconnect cenv =
         (\(e :: IOException) -> hPutStrLn stderr "Failure trying to disconnect from Yampa socket")
 
 conditionVMStep cenv =
-  sendToYampaSocketAsync (extra cenv) "Step"
+  void $ sendToYampaSocketSync (extra cenv) "Step"
 
 conditionVMSkip cenv =
   sendToYampaSocketAsync (extra cenv) "Skip"

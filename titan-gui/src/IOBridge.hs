@@ -68,7 +68,7 @@ openYampaCommHandle = do
   -- We're going to set buffering to BlockBuffering and then
   -- explicitly call hFlush after each message, below, so that
   -- messages get logged immediately
-  hSetBuffering h NoBuffering
+  hSetBuffering h LineBuffering
 
   -- Save off the socket, program name, and server address in a handle
   return h
@@ -99,7 +99,7 @@ openYampaEventHandle = do
   -- We're going to set buffering to BlockBuffering and then
   -- explicitly call hFlush after each message, below, so that
   -- messages get logged immediately
-  hSetBuffering h NoBuffering
+  hSetBuffering h LineBuffering
 
   -- Save off the socket, program name, and server address in a handle
   return h
