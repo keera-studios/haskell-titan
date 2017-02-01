@@ -53,7 +53,7 @@ installTraceViewerSelection cenv streamChart = do
       then do putStrLn "Out of range"
               reactiveValueWrite curFrameField' Nothing
       else if press
-             then do putStrLn $ "Pressed: "  ++ show (fs!!p)
+             then putStrLn $ "Pressed: "  ++ show (fs!!p)
              else do putStrLn $ "Released: " ++ show (fs!!p)
                      reactiveValueWrite curFrameField' (Just p)
 
@@ -68,7 +68,8 @@ installTraceViewerFrames cenv streamChart = do
   let framesField'   = mkFieldAccessor framesField        (model cenv)
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   let curSimFrame'   = mkFieldAccessor curSimFrameField   (model cenv)
-  liftR3 markSelectedFrame curFrameField' curSimFrame' framesField' =:> wrapMW (onViewAsync . streamChartSetList streamChart)
+  liftR3 markSelectedFrame curFrameField' curSimFrame' framesField'
+    =:> wrapMW (onViewAsync . streamChartSetList streamChart)
   framesField' =:> wrapMW (\fs -> putStrLn $ "Frames changed:" ++ show fs)
 
 markSelectedFrame :: Maybe Int -> Maybe Int -> [Frame] -> [Frame]
