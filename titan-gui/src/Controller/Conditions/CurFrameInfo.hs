@@ -20,9 +20,9 @@ installCondition cenv = do
 --  installConditionInput       cenv
   installConditionModifyInput cenv
 
-  installConditionShowFrame cenv
-  installConditionShowTime  cenv
-  installConditionShowDTime cenv
+  installConditionShowFrame   cenv
+  installConditionShowTime    cenv
+  installConditionShowDTime   cenv
 
 installConditionModifyInput cenv = do
   let curFrameField'      = mkFieldAccessor selectedFrameField      (model cenv)
@@ -79,11 +79,6 @@ installConditionShowDTime cenv = do
         _      -> postGUIAsync $ reactiveValueWrite txtFrameDTime' ""
     Nothing -> reactiveValueWrite txtFrameDTime' ""
    )
-
--- installConditionInput cenv = do
---   let curFrameInputField' = mkFieldAccessor selectedFrameInputField (model cenv)
---   curFrameInputTxt <- entryTextReactive <$> txtFrameInput (uiBuilder (view cenv))
---   curFrameInputField' =:= curFrameInputTxt
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
