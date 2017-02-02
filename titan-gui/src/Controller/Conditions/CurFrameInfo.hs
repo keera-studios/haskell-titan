@@ -17,7 +17,7 @@ import IOBridge
 
 installCondition :: CEnv -> IO ()
 installCondition cenv = do
---  installConditionInput       cenv
+  installConditionInput       cenv
   installConditionModifyInput cenv
 
   installConditionShowFrame   cenv
@@ -31,6 +31,26 @@ installConditionModifyInput cenv = do
 
   btn <- toolButtonActivateField <$> toolBtnModifyInput (uiBuilder (view cenv))
   (btn `governingR` curFrameData) =:> conditionVMModifyInput cenv
+
+installConditionInput cenv = do
+  let curFrameField'      = mkFieldAccessor selectedFrameField (model cenv)
+  let curFrameInputField' = mkFieldAccessor selectedFrameInputField (model cenv)
+  txtFrameInput' <- entryTextReactive <$> txtFrameInput (uiBuilder (view cenv))
+
+  curFrameField' =:> (wrapMW $ \f ->
+   case f of
+    Just ix -> do
+      let command = "GetInput " ++ show (ix :: Int)
+      n <- sendToYampaSocketSync (extra cenv) command
+      case n >>= maybeRead of
+        Just (Just x) -> do putStrLn ("Want to show " ++ show x)
+                            postGUIAsync $ do reactiveValueWrite txtFrameInput' x
+                                              reactiveValueWrite curFrameInputField' (Just x)
+        _      -> postGUIAsync $ do reactiveValueWrite txtFrameInput' ""
+                                    reactiveValueWrite curFrameInputField' Nothing
+    Nothing -> do reactiveValueWrite txtFrameInput' ""
+                  reactiveValueWrite curFrameInputField' Nothing
+   )
 
 conditionVMModifyInput :: CEnv -> (Maybe Int, Maybe String) -> IO ()
 conditionVMModifyInput cenv (mn, mi) = do

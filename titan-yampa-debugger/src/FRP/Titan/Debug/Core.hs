@@ -197,7 +197,7 @@ reactimateDebugStep = do
     Just (GetInput f)            -> do running <- (historyIsRunning . simHistory) <$> get
                                        if running
                                          then do e <- (`historyGetInput` f) <$> getSimHistory
-                                                 simSendMsg  (show e)
+                                                 simSendMsg (show (show <$> e))
                                          else simSendMsg "Nothing"
 
     Just (SetInput f i)          -> do case maybeRead i of
@@ -612,7 +612,7 @@ historyGetInput :: History a b -> Int -> Maybe a
 historyGetInput history f =
   let (Just (a0, sf0), ps) = getHistory history
       as = a0 : map (\(a,_,_) -> a) ps
-      e  = if length as >= f then Nothing else Just (as !! f)
+      e  = if length as < f then Nothing else Just (as !! f)
   in e
 
 -- | Get the time for the current frame
