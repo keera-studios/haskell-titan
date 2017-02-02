@@ -279,9 +279,19 @@ conditionVMConnect cenv =
             ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMTimeChanged cenv
             ((const ()) <^> (guardRO' eventField (== Just "CurrentFrameChanged"))) =:> conditionVMFrameChanged cenv
             ((const ()) <^> (guardRO' eventField (== Just "HistoryChanged")))      =:> conditionVMHistoryChanged cenv
+            ((const ()) <^> (guardRO' eventField (== Just "HistoryChanged")))      =:> conditionVMMaxTimeChanged cenv
 
         )
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")
+
+-- | Make this reactive
+conditionVMMaxTimeChanged cenv = do
+  entryGT <- txtMaxTime (uiBuilder (view cenv))
+  n <- sendToYampaSocketSync (extra cenv) "GetMaxTime"
+  putStrLn $ "Received " ++ show n
+  case maybe [] words n of
+    ["MaxTime", m] -> postGUIAsync $ entrySetText entryGT m
+    _              -> return ()
 
 -- | Make this reactive
 conditionVMTimeChanged cenv = do
