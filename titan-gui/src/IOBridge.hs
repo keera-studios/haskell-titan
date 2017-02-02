@@ -166,13 +166,15 @@ getFromEventSocketSync' ioBridgeRef = do
 
 sendToYampaSocketAsync ioBridgeRef msg =
   catch (sendToYampaSocketAsync' ioBridgeRef msg)
-        (\(e :: IOException) -> do hPutStrLn stderr ("Send failed when trying to send" ++ msg)
+        (\(e :: IOException) -> do hPutStrLn stderr ("Send failed when trying to send " ++ msg)
                                    return ())
 
 sendToYampaSocketAsync' ioBridgeRef msg = do
   ioBridge <- readIORef ioBridgeRef
   let mSocket = yampaSocket ioBridge
-  awhen mSocket $ \socket ->
+  awhen mSocket $ \socket -> do
+    hPutStrLn stderr ("Debug: Sending " ++ msg)
+    hFlush stderr
     hPutStrLn (commHandle socket) msg
 
 waitForInput handle n = do
