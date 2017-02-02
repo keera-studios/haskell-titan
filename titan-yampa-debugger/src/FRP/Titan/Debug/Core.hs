@@ -102,9 +102,24 @@ reactimateDebugStep = do
                                        when (n >= nframe) $ hPushCommand Redo
 
     -- Jump one step back in the simulation
+    Just (TravelToFrame n)       -> do running <- (historyIsRunning . simHistory) <$> get
+                                       when running $ do
+                                         p0 <- getPos <$> getSimHistory
+                                         simPrint ("TravelTo: Traveling to " ++ show n ++ ", current frame is " ++ show p0)
+                                         if | p0 == n -> hPushCommand Pause
+                                            | p0 <  n -> hPushCommand (TravelToFrame n) >> hPushCommand Step
+                                            | p0 >  n -> hPushCommand (TravelToFrame n) >> hPushCommand SkipBack
+
     Just SkipBack                -> do running <- (historyIsRunning . simHistory) <$> get
-                                       when (running) $ do
+                                       when running $ do
+                                         p0 <- getPos <$> getSimHistory
+                                         simPrint ("SB: The current frame position before modifying history is " ++ show p0)
                                          simModifyHistory historyBack
+                                         simSendEvent    "CurrentFrameChanged"
+                                         p1 <- getPos <$> getSimHistory
+                                         simPrint ("SB: The current frame position after modifying history is " ++ show p1)
+                                         l  <- (length.snd.fromJust.getInputHistory) <$> getSimHistory
+                                         simPrint ("SB: The number of recorded inputs after modifying history is " ++ show l)
                                          hPushCommand Redo
 
     -- Re-execute the last step
@@ -276,7 +291,14 @@ reactimateDebugStep = do
     stepRR stF = do
       simState <- get
       (a', dt, sf', b') <- stF
+      p0 <- getPos <$> getSimHistory
+      simPrint ("The current frame position before modifying history is " ++ show p0)
       simModifyHistory (`historyRecordFrame1` (a', dt, sf'))
+      p1 <- getPos <$> getSimHistory
+      simPrint ("The current frame position after modifying history is " ++ show p1)
+      l  <- (length.snd.fromJust.getInputHistory) <$> getSimHistory
+      simPrint ("The number of recorded inputs after modifying history is " ++ show l)
+
       when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input " ++ show a'
       simSendEvent "CurrentFrameChanged"
       simSendEvent "HistoryChanged"
@@ -601,7 +623,7 @@ historyGetGTime :: History a b -> Int -> Maybe DTime
 historyGetGTime history f =
   case getInputHistory history of
     Nothing       -> Nothing
-    Just (a0, ps) -> let dts = 0 : map (\(dt,_) -> dt) ps
+    Just (a0, ps) -> let dts = 0 : map fst ps
                          l   = length dts
                          e   = if l < f then Nothing else Just (sum (drop (l-f) dts))
                      in e
@@ -611,8 +633,8 @@ historyGetDTime :: History a b -> Int -> Maybe DTime
 historyGetDTime history f =
   case getInputHistory history of
     Nothing       -> Nothing
-    Just (a0, ps) -> let dts = 0 : map (\(dt,_) -> dt) ps
-                         e   = if length dts < f then Nothing else Just (dts !! f)
+    Just (a0, ps) -> let dts = 0 : map fst ps
+                         e   = if length dts < f || f < 0 then Nothing else Just (dts !! f)
                      in e
 
 -- | Get the input for a given frame
@@ -620,15 +642,15 @@ historyGetInput :: History a b -> Int -> Maybe a
 historyGetInput history f =
   case getInputHistory history of
     Nothing       -> Nothing
-    Just (a0, ps) -> let as = a0 : map (\(_,a) -> a) ps
-                         e  = if length as < f then Nothing else Just (as !! f)
+    Just (a0, ps) -> let as = a0 : map snd ps
+                         e  = if length as < f  || f < 0then Nothing else Just (as !! f)
                      in e
 
 -- | Get the time for the current frame
 historyGetCurrentTime :: History t b -> DTime
 historyGetCurrentTime history =
   case getInputHistory history of
-    Just (a0, ps)  -> sum $ map (\(dt,_) -> dt) (takeLast (getPos history) ps)
+    Just (a0, ps)  -> sum $ map (\(dt,_) -> dt) (take (getPos history) ps)
     Nothing        -> 0
 
 -- | Get the current frame number.
@@ -638,17 +660,20 @@ historyGetCurrentFrame history =  getPos history
 -- | Record a running frame
 historyRecordFrame1 :: History a b -> (a, DTime, SF' a b) -> History a b
 historyRecordFrame1 history (a', dt, sf') = historySF
- where historyInput = case getInputHistory history of
-                        Nothing       -> history
-                        Just (a0, ps) -> if getPos history <= 0
-                                           then history
-                                           else history { getInputHistory = Just (a0, appAt (getPos history) (const (dt, a')) ps) }
-       historySF = let (s0, ss) = getSFHistory historyInput
-                   in if getPos history <= 0
-                        then historyInput
-                        else historyInput { getSFHistory = (s0, take (getPos history) ss ++ [sf'])
-                                          , getPos       = getPos history + 1
-                                          }
+ where
+   historyInput = case getInputHistory history of
+                    Nothing       -> history
+                    Just (a0, ps) -> if | pos > 0 && pos < length ps -> history { getInputHistory = Just (a0, appAt pos (const (dt, a')) ps) }
+                                        | pos > 0                    -> history { getInputHistory = Just (a0, (dt, a'):ps) }
+                                        | otherwise                  -> history
+
+   historySF = let (s0, ss) = getSFHistory historyInput
+               in if getPos history <= 0
+                    then historyInput
+                    else historyInput { getSFHistory = (s0, take (getPos history) ss ++ [sf'])
+                                      , getPos       = pos + 1
+                                      }
+   pos = getPos history
 
 -- | Get the total number of frames
 historyGetNumFrames :: History t b -> Int
@@ -673,12 +698,13 @@ historyGetCurFrame history =
 getSampleAt :: Stream a a' -> Int -> Maybe (Either a a')
 getSampleAt (s0, ss) 0 = Just (Left s0)
 getSampleAt (s0, ss) n
-  | n > 0 && n <= length ss = Just (Right (ss!!n))
-  | otherwise               = Nothing
+  | n <= length ss = Just (Right (ss!!(n-1)))
+  | otherwise      = Nothing
 
 -- | Move one step back in history
 historyBack :: History a b -> History a b
-historyBack history = history { getPos = max (-1) (getPos history) }
+historyBack history = history { getPos = max 0 (getPos history - 1)}
+
   -- case getHistory history of
   --   (Just (a0, sf0), _:(_a,_dt, sf'):prevs@((lastInput, _, _):_)) -> (Just $ History (Just (a0, sf0), prevs) (Right sf') (Just lastInput), Right (sf', lastInput))
   --   (Just (a0, sf0), _:(_a,_dt, sf'):[])                          -> (Just $ History (Just (a0, sf0), [])    (Right sf') (Just a0),        Right (sf', a0))
@@ -759,7 +785,7 @@ class Read p => Pred p i o | p -> i, p -> o where
 
 -- *** Lists
 
-takeLast n l = reverse $ take n $ reverse l
+-- takeLast n l = reverse $ take n $ reverse l
 
 appAt :: Int -> (a -> a) -> [a] -> [a]
 appAt _ f [] = []
