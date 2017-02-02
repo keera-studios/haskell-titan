@@ -96,6 +96,7 @@ reactimateDebugStep = do
 
     -- Discard all future after a specific frame
     Just (DiscardFuture n)       -> do simSendEvent    "CurrentFrameChanged"
+                                       simSendEvent    "HistoryChanged"
                                        nframe <- (historyGetCurrentFrame . simHistory) <$> get
                                        simModifyHistory (`historyDiscardFuture` n)
                                        when (n >= nframe) $ hPushCommand Redo
@@ -115,7 +116,7 @@ reactimateDebugStep = do
                                        showInput <- (dumpInput . simPrefs) <$> get
                                        when showInput $ simPrint ("CORE: Redo from input " ++ show a0)
 
-                                       last <- simActuate  True b0
+                                       last <- simActuate True b0
                                        when last (modify simFinish)
 
 
@@ -209,6 +210,10 @@ reactimateDebugStep = do
 
     Just (GetDTime f)            -> do e <- (`historyGetDTime` f) <$> getSimHistory
                                        simSendMsg (show e)
+
+    Just (GetMaxTime)            -> do e <- historyGetMaxTime <$> getSimHistory
+                                       simPrint $ "CORE: Want to send Max time, which is " ++ show e
+                                       simSendMsg $ "MaxTime " ++ show e
 
     Just (SetDTime f dtS)        -> do case maybeRead dtS of
                                          Nothing -> return ()
@@ -444,6 +449,7 @@ data Command p = Step                       -- ^ Control: Execute a complete sim
                | SetDTime Int String        -- ^ Info: Change dtime at a particular frame
                | GetCurrentFrame            -- ^ Info: Obtain the current frame
                | GetCurrentTime             -- ^ Info: Obtain the current time
+               | GetMaxTime                 -- ^ Info: Obtain the last time that has been explored
                | GetTrace                   -- ^ Info: Obtain input at a particular frame
                | SummarizeHistory           -- ^ Info: Print summary information about the history
                | SetPrefDumpInput Bool      -- ^ Preferences: Alter simulation preferences
@@ -486,6 +492,7 @@ stopPlayingCommand (SummarizeHistory)      = False
 stopPlayingCommand (SetPrefDumpInput _)    = False
 stopPlayingCommand (GetPrefDumpInput)      = False
 stopPlayingCommand (Ping)                  = False
+stopPlayingCommand (GetMaxTime)            = False
 
 hPushCommand :: Command p -> SimMonad p a b ()
 hPushCommand cmd = modify
@@ -575,6 +582,13 @@ historyReplaceInputDTimeAt history f dt a =
        else if f == 0
               then history { getHistory = (Just (a, sf0), ps) }
               else history { getHistory = (Just (a0, sf0), appAt (f-1) (\(_,_,sf) -> (a, dt, sf)) ps) }
+
+-- | Get the total time at a given point/frame
+historyGetMaxTime :: History a b -> DTime
+historyGetMaxTime history =
+  case getHistory history of
+    (Nothing, _)         -> 0
+    (Just (a0, sf0), ps) -> sum $ map (\(_,dt,_) -> dt) ps
 
 -- | Get the total time at a given point/frame
 historyGetGTime :: History a b -> Int -> Maybe DTime
