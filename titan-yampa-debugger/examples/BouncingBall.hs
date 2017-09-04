@@ -28,32 +28,41 @@ main = do
                 dtSecs <- yampaSDLTimeSense timeRef
                 return (dtSecs, Nothing))
              (\_ e -> display e >> return False)
-             inCircles
+             bouncingBall
 
 display :: Double -> IO()
-display angle = do
+display y = do
   -- Obtain surface
   screen <- getVideoSurface
 
   -- Paint screen green
   let format = surfaceGetPixelFormat screen
-  green <- mapRGB format 0 0xFF 0
+  green <- mapRGB format 0xAB 0xA9 0xBF
   fillRect screen Nothing green
 
   -- Paint small red square, at an angle 'angle' with respect to the center
-  red <- mapRGB format 0xFF 0 0
-  let radius = 30
-      side   = 10
-      x = (width  `div` 2) + round (cos angle * radius)
-      y = (height `div` 2) + round (sin angle * radius)
-  filledCircle screen x y side (Pixel 0xFF0000FF)
+  red <- mapRGB format 0x34 0x11 0x3F
+  let radius = 20
+  let x = (width  - radius) `div` 2
+  filledCircle screen x (height - round y) radius (Pixel 0xFF3411FF)
 
+  putStrLn (show (x, y, radius))
   -- Double buffering
   SDL.flip screen
 
+bouncingBall :: SF () Double
+bouncingBall = bouncingBall' (height / 2) 0 >>> arr fst
 
-inCircles :: SF () Double
-inCircles = localTime -- >>> arr (\time -> time * pi / 4)
+bouncingBall' :: Double -> Double -> SF () (Double, Double)
+bouncingBall' p0 v0 = switch (fallingBall p0 v0 >>> (arr id &&& hitFloor)) (\(p,v) -> bouncingBall' p (-v))
+
+fallingBall p0 v0 = proc () -> do
+                      v <- (v0+) ^<< integral -< -9.8
+                      p <- (p0+) ^<< integral -< v
+                      returnA -< (p, v)
+
+hitFloor =
+  arr (\(p,v) -> if p < 0 && v < 0 then Event (p,v) else Yampa.NoEvent)
 
 initGraphs :: IO ()
 initGraphs = do
@@ -77,7 +86,7 @@ yampaSDLTimeSense timeRef = do
 
   -- Obtain time difference
   dt <- updateTime timeRef newTime
-  let dtSecs = fromIntegral dt / 100
+  let dtSecs = fromIntegral dt / 1000
   return dtSecs
 
 newtype PosLowerThan = PosLowerThan { limit :: Double }
