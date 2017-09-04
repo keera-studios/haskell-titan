@@ -261,7 +261,7 @@ reactimateDebugStep = do
       a0 <- simSense
       when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input: " ++ show a0
 
-      let sf       = fromLeft (getCurSF history)
+      let sf       = fromLeft (getCurSF' history)
           tf0      = sfTF sf
           (sf',b0) = tf0 a0
       _ <- simActuate  True b0
@@ -279,7 +279,7 @@ reactimateDebugStep = do
       a0 <- simSense
       when (dumpInput (simPrefs simState)) $ simPrint $ "CORE: Input: " ++ show a0
 
-      let sf   = fromLeft (getCurSF history)
+      let sf   = fromLeft (getCurSF' history)
           tf0  = sfTF sf
           (sf',b0) = tf0 a0
       -- TODO Potential bug here: it could simulate too much!
@@ -309,7 +309,7 @@ reactimateDebugStep = do
 
       history      <- getSimHistory
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
-          sf       = fromRight $ getCurSF history
+          sf       = fromRight $ getCurSF' history
           (sf',b') = (sfTF' sf) dt a'
       last         <- simActuate  True b'
 
@@ -321,7 +321,7 @@ reactimateDebugStep = do
 
       history      <- getSimHistory
       let a'       = fromMaybe (fromJust $ getLastInput history) ma' -- unsafe fromJust
-          sf       = fromRight $ getCurSF history
+          sf       = fromRight $ getCurSF' history
           (sf',b') = (sfTF' sf) dt a'
 
       return (a', dt, sf', b')
@@ -433,6 +433,9 @@ data History a b = History
   , getCurSF        :: Either (SF a b) (SF' a b)
   , getLastInput    :: Maybe a
   }
+
+getCurSF' :: History a b -> Either (SF a b) (SF' a b)
+getCurSF' history = fromMaybe (Left $ fst $ getSFHistory history) (getSampleAt (getSFHistory history) (getPos (history)))
 
 type Stream a a' = (a, [a'])
 
@@ -664,7 +667,7 @@ historyRecordFrame1 history (a', dt, sf') = historySF
    historyInput = case getInputHistory history of
                     Nothing       -> history
                     Just (a0, ps) -> if | pos > 0 && pos < length ps -> history { getInputHistory = Just (a0, appAt pos (const (dt, a')) ps) }
-                                        | pos > 0                    -> history { getInputHistory = Just (a0, (dt, a'):ps) }
+                                        | pos > 0                    -> history { getInputHistory = Just (a0, ps ++ [(dt, a')]) }
                                         | otherwise                  -> history
 
    historySF = let (s0, ss) = getSFHistory historyInput
