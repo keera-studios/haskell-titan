@@ -290,45 +290,39 @@ conditionVMMaxTimeChanged cenv = do
   entryGT <- txtMaxTime (uiBuilder (view cenv))
   maxTime <- sendToYampaSocketSync (extra cenv) "GetMaxTime"
   putStrLn $ "Received " ++ show maxTime
-  case maybe [] words maxTime of
-    ["MaxTime", m] -> postGUIAsync $ entrySetText entryGT m
-    _              -> return ()
+  case maxTime >>= maybeRead of
+    Just (MaxTime time) -> postGUIAsync $ entrySetText entryGT $ show time
+    _                   -> return ()
 
 -- | Make this reactive
 conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
   curTime <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
   putStrLn $ "Received " ++ show curTime
-  case maybe [] words curTime of
-    ["CurrentTime", m] -> postGUIAsync $ entrySetText entryGT m
-    _                  -> return ()
+  case curTime >>= maybeRead of
+    Just (CurrentTime time) -> postGUIAsync $ entrySetText entryGT $ show time
+    _                       -> return ()
 
 -- | Make this reactive
 conditionVMFrameChanged cenv = do
   let curSimFrame' = mkFieldAccessor curSimFrameField (model cenv)
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
-  n <- sendToYampaSocketSync (extra cenv) "GetCurrentFrame"
-  putStrLn $ "Received " ++ show n
-  case maybe [] words n of
-    ["CurrentFrame", m] -> case maybeRead m of
-                             Just m' -> do putStrLn $ "Current Frame is " ++ show m'
-                                           reactiveValueWrite curSimFrame' (Just m')
-                             Nothing -> do reactiveValueWrite curSimFrame' Nothing
-    _                   -> reactiveValueWrite curSimFrame' Nothing
+  n       <- sendToYampaSocketSync (extra cenv) "GetCurrentFrame"
+  case n >>= maybeRead of
+    Just (CurrentFrame m') -> do putStrLn $ "Current Frame is " ++ show m'
+                                 reactiveValueWrite curSimFrame' (Just m')
+    _                      -> reactiveValueWrite curSimFrame' Nothing
 
 -- | Make this reactive
 conditionVMHistoryChanged cenv = do
   let fs = mkFieldAccessor framesField (model cenv)
   n <- sendToYampaSocketSync (extra cenv) "SummarizeHistory"
   putStrLn $ "Received " ++ show n
-  case maybe [] words n of
-    ["CurrentHistory", m] -> case maybeRead m of
-                               Just m' -> do putStrLn $ "Show have now " ++ show m' ++ " frames"
-                                             reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
-                               Nothing -> do putStrLn "Could not read any number of frames"
-                                             reactiveValueWrite fs []
-    _                      -> do putStrLn "Could not read any number of frames"
-                                 reactiveValueWrite fs []
+  case n >>= maybeRead of
+    Just (CurrentHistory m') -> do putStrLn $ "Show have now " ++ show m' ++ " frames"
+                                   reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
+    _                        -> do putStrLn "Could not read any number of frames"
+                                   reactiveValueWrite fs []
 
 
 conditionVMDisconnect cenv =
@@ -367,3 +361,9 @@ conditionVMReplayTrace cenv =
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
+
+data Response = CurrentFrame   Int
+              | CurrentHistory Int
+              | CurrentTime    Float
+              | MaxTime        Float
+ deriving Read
