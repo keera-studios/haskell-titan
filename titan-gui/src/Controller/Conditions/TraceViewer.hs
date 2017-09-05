@@ -28,7 +28,7 @@ installTraceViewerSelection cenv = do
   -- TODO: Make streamchart reactive
   streamChartOnButtonEvent traceViewer $ \press p -> do
     fs <- reactiveValueRead (mkFieldAccessor framesField (model cenv))
-    if (p >= length fs || p < 0)
+    if p >= length fs || p < 0
       then do putStrLn "Out of range"
               reactiveValueWrite curFrameField' Nothing
       else if press
