@@ -4,6 +4,7 @@ module Controller.Conditions.Buttons where
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.IfElse
 import Data.Maybe
 import Data.ReactiveValue
 import Graphics.UI.Gtk
@@ -115,11 +116,9 @@ conditionVMLoadTrace cenv = do
           ResponseDeleteEvent -> putStrLn "You closed the dialog window..." >> return Nothing
 
   widgetDestroy fch
-  case fp of
-    Nothing -> return ()
-    (Just p) -> do
-      contents <- readFile p
-      sendToYampaSocketAsync (extra cenv) ("LoadTraceFromString " ++ show contents)
+  awhen fp $ \p -> do
+    contents <- readFile p
+    sendToYampaSocketAsync (extra cenv) ("LoadTraceFromString " ++ show contents)
 
 -- gtkBuilderAccessor "toolBtnRefineTrace"        "Button"
 installConditionRefineTrace cenv = void $ do
