@@ -64,7 +64,7 @@ installConditionShowFrame cenv = do
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
   txtFrameNumber' <- entryTextReactive <$> txtFrameNumber      (uiBuilder (view cenv))
 
-  (liftR (maybe "" show) curFrameField') =:> txtFrameNumber'
+  liftR (maybe "" show) curFrameField' =:> txtFrameNumber'
 
 installConditionShowTime cenv = do
   let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)

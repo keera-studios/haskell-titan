@@ -76,9 +76,8 @@ conditionVMSaveTrace cenv = onViewAsync $ do
                                  Just path -> do putStrLn ("New file path is:\n" ++ path)
                                                  n <- sendToYampaSocketSync (extra cenv) "GetTrace"
                                                  case n >>= maybeRead of
-                                                   Nothing -> return ()
-                                                   Just Nothing  -> return ()
                                                    Just (Just s) -> writeFile path s
+                                                   _             -> return ()
        ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
 
   widgetDestroy fch
@@ -111,7 +110,7 @@ conditionVMLoadTrace cenv = do
           ResponseCancel -> putStrLn "You cancelled..." >> return Nothing
           ResponseAccept -> do nwf <- fileChooserGetFilename fch
                                case nwf of
-                                    Nothing -> putStrLn "Nothing" >> return Nothing
+                                    Nothing   -> putStrLn "Nothing" >> return Nothing
                                     Just path -> putStrLn ("New file path is:\n" ++ path) >> return (Just path)
           ResponseDeleteEvent -> putStrLn "You closed the dialog window..." >> return Nothing
 
@@ -126,6 +125,7 @@ conditionVMLoadTrace cenv = do
 installConditionRefineTrace cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnRefineTrace (uiBuilder (view cenv))
   btn =:> conditionVMRefineTrace cenv
+
 conditionVMRefineTrace :: CEnv -> IO ()
 conditionVMRefineTrace cenv = return ()
 
@@ -137,7 +137,7 @@ installConditionDiscardFuture cenv = void $ do
   (btn `governingR` curFrameField') =:> conditionVMDiscardFuture cenv
 
 conditionVMDiscardFuture :: CEnv -> Maybe Int -> IO ()
-conditionVMDiscardFuture cenv Nothing = return ()
+conditionVMDiscardFuture cenv Nothing  = return ()
 conditionVMDiscardFuture cenv (Just i) = do
   sendToYampaSocketAsync (extra cenv) ("DiscardFuture " ++ show i)
 
@@ -145,6 +145,7 @@ conditionVMDiscardFuture cenv (Just i) = do
 installConditionSaveTraceUpToFrame cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnSaveTraceUpToFrame (uiBuilder (view cenv))
   btn =:> conditionVMSaveTraceUpToFrame cenv
+
 conditionVMSaveTraceUpToFrame :: CEnv -> IO ()
 conditionVMSaveTraceUpToFrame cenv = do
   window <- mainWindow (uiBuilder (view cenv))
@@ -185,7 +186,7 @@ installConditionTravelToFrame cenv = void $ do
   (btn `governingR` curFrameField') =:> conditionVMTravelToFrame cenv
 
 conditionVMTravelToFrame :: CEnv -> Maybe Int -> IO ()
-conditionVMTravelToFrame cenv Nothing = return ()
+conditionVMTravelToFrame cenv Nothing  = return ()
 conditionVMTravelToFrame cenv (Just i) = do
   sendToYampaSocketAsync (extra cenv) ("TravelToFrame " ++ show i)
 
@@ -197,7 +198,7 @@ installConditionTeleportToFrame cenv = void $ do
   (btn `governingR` curFrameField') =:> conditionVMTeleportToFrame cenv
 
 conditionVMTeleportToFrame :: CEnv -> Maybe Int -> IO ()
-conditionVMTeleportToFrame cenv Nothing = return ()
+conditionVMTeleportToFrame cenv Nothing  = return ()
 conditionVMTeleportToFrame cenv (Just i) = do
   sendToYampaSocketAsync (extra cenv) ("JumpTo " ++ show i)
 
@@ -209,7 +210,7 @@ installConditionIOSenseFrame cenv = void $ do
   (btn `governingR` curFrameField') =:> conditionVMIOSenseFrame cenv
 
 conditionVMIOSenseFrame :: CEnv -> Maybe Int -> IO ()
-conditionVMIOSenseFrame cenv Nothing = return ()
+conditionVMIOSenseFrame cenv Nothing  = return ()
 conditionVMIOSenseFrame cenv (Just i) = do
   sendToYampaSocketAsync (extra cenv) ("IOSense " ++ show i)
 
@@ -236,27 +237,27 @@ installConditionStepUntil cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnStepUntil (uiBuilder (view cenv))
   btn =:> conditionVMStepUntil cenv
 
-installConditionSkip cenv = void $ do
+installConditionSkip cenv = do
   btn <- toolButtonActivateField <$> toolBtnSkip (uiBuilder (view cenv))
   btn =:> conditionVMSkip cenv
 
-installConditionSkipBack cenv = void $ do
+installConditionSkipBack cenv = do
   btn <- toolButtonActivateField <$> toolBtnSkipBack (uiBuilder (view cenv))
   btn =:> conditionVMSkipBack cenv
 
-installConditionRedo cenv = void $ do
+installConditionRedo cenv = do
   btn <- toolButtonActivateField <$> toolBtnRedo (uiBuilder (view cenv))
   btn =:> conditionVMRedo cenv
 
-installConditionPlay cenv = void $ do
+installConditionPlay cenv = do
   btn <- toolButtonActivateField <$> toolBtnPlay (uiBuilder (view cenv))
   btn =:> conditionVMPlay cenv
 
-installConditionStop cenv = void $ do
+installConditionStop cenv = do
   btn <- toolButtonActivateField <$> toolBtnStop (uiBuilder (view cenv))
   btn =:> conditionVMStop cenv
 
-installConditionPause cenv = void $ do
+installConditionPause cenv = do
   btn <- toolButtonActivateField <$> toolBtnPause (uiBuilder (view cenv))
   btn =:> conditionVMPause cenv
 
@@ -287,18 +288,18 @@ conditionVMConnect cenv =
 -- | Make this reactive
 conditionVMMaxTimeChanged cenv = do
   entryGT <- txtMaxTime (uiBuilder (view cenv))
-  n <- sendToYampaSocketSync (extra cenv) "GetMaxTime"
-  putStrLn $ "Received " ++ show n
-  case maybe [] words n of
+  maxTime <- sendToYampaSocketSync (extra cenv) "GetMaxTime"
+  putStrLn $ "Received " ++ show maxTime
+  case maybe [] words maxTime of
     ["MaxTime", m] -> postGUIAsync $ entrySetText entryGT m
     _              -> return ()
 
 -- | Make this reactive
 conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
-  n <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
-  putStrLn $ "Received " ++ show n
-  case maybe [] words n of
+  curTime <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
+  putStrLn $ "Received " ++ show curTime
+  case maybe [] words curTime of
     ["CurrentTime", m] -> postGUIAsync $ entrySetText entryGT m
     _                  -> return ()
 
@@ -309,11 +310,11 @@ conditionVMFrameChanged cenv = do
   n <- sendToYampaSocketSync (extra cenv) "GetCurrentFrame"
   putStrLn $ "Received " ++ show n
   case maybe [] words n of
-    ["CurrentFrame", m] -> do case maybeRead m of
-                                Just m' -> do putStrLn $ "Current Frame is " ++ show m'
-                                              reactiveValueWrite curSimFrame' (Just m')
-                                Nothing -> do reactiveValueWrite curSimFrame' Nothing
-    _                   -> do reactiveValueWrite curSimFrame' Nothing
+    ["CurrentFrame", m] -> case maybeRead m of
+                             Just m' -> do putStrLn $ "Current Frame is " ++ show m'
+                                           reactiveValueWrite curSimFrame' (Just m')
+                             Nothing -> do reactiveValueWrite curSimFrame' Nothing
+    _                   -> reactiveValueWrite curSimFrame' Nothing
 
 -- | Make this reactive
 conditionVMHistoryChanged cenv = do
@@ -326,8 +327,8 @@ conditionVMHistoryChanged cenv = do
                                              reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
                                Nothing -> do putStrLn "Could not read any number of frames"
                                              reactiveValueWrite fs []
-    _                      ->  do putStrLn "Could not read any number of frames"
-                                  reactiveValueWrite fs []
+    _                      -> do putStrLn "Could not read any number of frames"
+                                 reactiveValueWrite fs []
 
 
 conditionVMDisconnect cenv =
