@@ -20,10 +20,10 @@ license:             AllRightsReserved
 license-file:        LICENSE
 author:              Ivan Perez
 maintainer:          ivan.perez@keera.co.uk
--- copyright:
+
 category:            Development
 build-type:          Simple
--- extra-source-files:
+
 cabal-version:       >=1.10
 
 data-files: data/*.glade
