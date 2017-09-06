@@ -72,16 +72,16 @@ conditionVMSaveTrace cenv = onViewAsync $ do
   widgetShow fch
   response <- dialogRun fch
   case response of
-       ResponseCancel -> putStrLn "You cancelled..."
-       ResponseAccept -> do nwf <- fileChooserGetFilename fch
-                            case nwf of
-                                 Nothing -> putStrLn "Nothing"
-                                 Just path -> do putStrLn ("New file path is:\n" ++ path)
-                                                 n <- sendToYampaSocketSync (extra cenv) "GetTrace"
-                                                 case n >>= maybeRead of
-                                                   Just (Just s) -> writeFile path s
-                                                   _             -> return ()
-       ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
+    ResponseCancel -> putStrLn "You cancelled..."
+    ResponseAccept -> do nwf <- fileChooserGetFilename fch
+                         case nwf of
+                           Nothing   -> putStrLn "Nothing"
+                           Just path -> do putStrLn ("New file path is:\n" ++ path)
+                                           n <- sendToYampaSocketSync (extra cenv) "GetTrace"
+                                           case n >>= maybeRead of
+                                             Just (Just s) -> writeFile path s
+                                             _             -> return ()
+    ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
 
   widgetDestroy fch
 
@@ -113,8 +113,8 @@ conditionVMLoadTrace cenv = do
           ResponseCancel -> putStrLn "You cancelled..." >> return Nothing
           ResponseAccept -> do nwf <- fileChooserGetFilename fch
                                case nwf of
-                                    Nothing   -> putStrLn "Nothing" >> return Nothing
-                                    Just path -> putStrLn ("New file path is:\n" ++ path) >> return (Just path)
+                                 Nothing   -> putStrLn "Nothing" >> return Nothing
+                                 Just path -> putStrLn ("New file path is:\n" ++ path) >> return (Just path)
           ResponseDeleteEvent -> putStrLn "You closed the dialog window..." >> return Nothing
 
   widgetDestroy fch
@@ -170,12 +170,12 @@ conditionVMSaveTraceUpToFrame cenv = do
   widgetShow fch
   response <- dialogRun fch
   case response of
-       ResponseCancel -> putStrLn "You cancelled..."
-       ResponseAccept -> do nwf <- fileChooserGetFilename fch
-                            case nwf of
-                                 Nothing -> putStrLn "Nothing"
-                                 Just path -> putStrLn ("New file path is:\n" ++ path)
-       ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
+    ResponseCancel -> putStrLn "You cancelled..."
+    ResponseAccept -> do nwf <- fileChooserGetFilename fch
+                         case nwf of
+                           Nothing   -> putStrLn "Nothing"
+                           Just path -> putStrLn ("New file path is:\n" ++ path)
+    ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
 
   widgetDestroy fch
 
