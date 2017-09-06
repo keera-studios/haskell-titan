@@ -198,7 +198,7 @@ installConditionTeleportToFrame cenv = void $ do
 
 conditionVMTeleportToFrame :: CEnv -> Maybe Int -> IO ()
 conditionVMTeleportToFrame cenv Nothing  = return ()
-conditionVMTeleportToFrame cenv (Just i) = do
+conditionVMTeleportToFrame cenv (Just i) =
   sendToYampaSocketAsync (extra cenv) ("JumpTo " ++ show i)
 
 -- gtkBuilderAccessor "toolBtnIOSenseFrame"       "Button"
@@ -210,7 +210,7 @@ installConditionIOSenseFrame cenv = void $ do
 
 conditionVMIOSenseFrame :: CEnv -> Maybe Int -> IO ()
 conditionVMIOSenseFrame cenv Nothing  = return ()
-conditionVMIOSenseFrame cenv (Just i) = do
+conditionVMIOSenseFrame cenv (Just i) =
   sendToYampaSocketAsync (extra cenv) ("IOSense " ++ show i)
 
 -- gtkBuilderAccessor "toolBtnModifyTime"         "Button"
