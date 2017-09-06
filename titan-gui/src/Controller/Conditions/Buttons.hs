@@ -15,9 +15,9 @@ import Hails.Polling
 import System.IO
 
 import CombinedEnvironment
+import FRP.Titan.Protocol
 import IOBridge
 import Model.Model (defaultFrame)
-import FRP.Titan.Protocol
 
 installCondition :: CEnv -> IO ()
 installCondition cenv = do
@@ -286,7 +286,7 @@ conditionVMConnect cenv =
         )
         (\(e :: IOException) -> hPutStrLn stderr "Cannot connect to Yampa socket")
 
--- | Make this reactive
+-- | TODO: Make this reactive
 conditionVMMaxTimeChanged cenv = do
   entryGT <- txtMaxTime (uiBuilder (view cenv))
   maxTime <- sendToYampaSocketSync (extra cenv) (show GetMaxTime)
@@ -295,7 +295,7 @@ conditionVMMaxTimeChanged cenv = do
     Just (MaxTime time) -> postGUIAsync $ entrySetText entryGT $ show time
     _                   -> return ()
 
--- | Make this reactive
+-- | TODO: Make this reactive
 conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
   curTime <- sendToYampaSocketSync (extra cenv) (show GetCurrentTime)
@@ -304,7 +304,7 @@ conditionVMTimeChanged cenv = do
     Just (CurrentTime time) -> postGUIAsync $ entrySetText entryGT $ show time
     _                       -> return ()
 
--- | Make this reactive
+-- | TODO: Make this reactive
 conditionVMFrameChanged cenv = do
   let curSimFrame' = mkFieldAccessor curSimFrameField (model cenv)
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
@@ -314,7 +314,9 @@ conditionVMFrameChanged cenv = do
                                  reactiveValueWrite curSimFrame' (Just m')
     _                      -> reactiveValueWrite curSimFrame' Nothing
 
--- | Make this reactive
+-- | TODO: Make this reactive
+--
+-- TODO: Bug: This resets the frame list to the default values.
 conditionVMHistoryChanged cenv = do
   let fs = mkFieldAccessor framesField (model cenv)
   n <- sendToYampaSocketSync (extra cenv) (show SummarizeHistory)
