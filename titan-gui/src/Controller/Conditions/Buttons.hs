@@ -14,6 +14,7 @@ import Hails.MVC.Model.ProtectedModel.Reactive
 import Hails.Polling
 import System.IO
 
+import Auxiliary
 import CombinedEnvironment
 import FRP.Titan.Protocol
 import IOBridge
@@ -361,6 +362,3 @@ conditionVMDeleteTrace cenv =
 
 conditionVMReplayTrace cenv =
   sendToYampaSocketAsync (extra cenv) (show ReplayTrace)
-
-maybeRead :: Read a => String -> Maybe a
-maybeRead = fmap fst . listToMaybe . reads

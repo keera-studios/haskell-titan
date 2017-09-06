@@ -13,6 +13,7 @@ import Graphics.UI.Gtk.Reactive.Gtk2
 import Hails.MVC.Model.ProtectedModel.Reactive
 import System.IO
 
+import Auxiliary
 import CombinedEnvironment
 import IOBridge
 
@@ -97,6 +98,3 @@ installConditionShowDTime cenv = do
            _      -> postGUIAsync $ reactiveValueWrite txtFrameDTime' ""
        Nothing -> reactiveValueWrite txtFrameDTime' ""
     )
-
-maybeRead :: Read a => String -> Maybe a
-maybeRead = fmap fst . listToMaybe . reads
