@@ -119,7 +119,7 @@ conditionVMLoadTrace cenv = do
   widgetDestroy fch
   awhen fp $ \p -> do
     contents <- readFile p
-    sendToYampaSocketAsync (extra cenv) ("LoadTraceFromString " ++ show contents)
+    sendToYampaSocketAsync (extra cenv) (show (LoadTraceFromString contents))
 
 -- gtkBuilderAccessor "toolBtnRefineTrace"        "Button"
 installConditionRefineTrace cenv = void $ do
@@ -139,7 +139,7 @@ installConditionDiscardFuture cenv = void $ do
 conditionVMDiscardFuture :: CEnv -> Maybe Int -> IO ()
 conditionVMDiscardFuture cenv Nothing  = return ()
 conditionVMDiscardFuture cenv (Just i) = do
-  sendToYampaSocketAsync (extra cenv) ("DiscardFuture " ++ show i)
+  sendToYampaSocketAsync (extra cenv) (show (DiscardFuture i))
 
 -- gtkBuilderAccessor "toolBtnSaveTraceUpToFrame" "Button"
 installConditionSaveTraceUpToFrame cenv = void $ do

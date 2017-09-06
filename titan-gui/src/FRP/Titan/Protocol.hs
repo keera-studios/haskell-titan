@@ -29,4 +29,5 @@ data TitanCommand = GetMaxTime
                   | JumpTo Int
                   | IOSense Int
                   | DiscardFuture Int
+                  | LoadTraceFromString String
   deriving Show
