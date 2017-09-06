@@ -289,7 +289,7 @@ conditionVMConnect cenv =
 -- | Make this reactive
 conditionVMMaxTimeChanged cenv = do
   entryGT <- txtMaxTime (uiBuilder (view cenv))
-  maxTime <- sendToYampaSocketSync (extra cenv) "GetMaxTime"
+  maxTime <- sendToYampaSocketSync (extra cenv) (show GetMaxTime)
   putStrLn $ "Received " ++ show maxTime
   case maxTime >>= maybeRead of
     Just (MaxTime time) -> postGUIAsync $ entrySetText entryGT $ show time
@@ -298,7 +298,7 @@ conditionVMMaxTimeChanged cenv = do
 -- | Make this reactive
 conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
-  curTime <- sendToYampaSocketSync (extra cenv) "GetCurrentTime"
+  curTime <- sendToYampaSocketSync (extra cenv) (show GetCurrentTime)
   putStrLn $ "Received " ++ show curTime
   case curTime >>= maybeRead of
     Just (CurrentTime time) -> postGUIAsync $ entrySetText entryGT $ show time
@@ -308,7 +308,7 @@ conditionVMTimeChanged cenv = do
 conditionVMFrameChanged cenv = do
   let curSimFrame' = mkFieldAccessor curSimFrameField (model cenv)
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
-  n       <- sendToYampaSocketSync (extra cenv) "GetCurrentFrame"
+  n       <- sendToYampaSocketSync (extra cenv) (show GetCurrentFrame)
   case n >>= maybeRead of
     Just (CurrentFrame m') -> do putStrLn $ "Current Frame is " ++ show m'
                                  reactiveValueWrite curSimFrame' (Just m')
@@ -317,7 +317,7 @@ conditionVMFrameChanged cenv = do
 -- | Make this reactive
 conditionVMHistoryChanged cenv = do
   let fs = mkFieldAccessor framesField (model cenv)
-  n <- sendToYampaSocketSync (extra cenv) "SummarizeHistory"
+  n <- sendToYampaSocketSync (extra cenv) (show SummarizeHistory)
   putStrLn $ "Received " ++ show n
   case n >>= maybeRead of
     Just (CurrentHistory m') -> do putStrLn $ "Show have now " ++ show m' ++ " frames"
@@ -331,34 +331,34 @@ conditionVMDisconnect cenv =
         (\(e :: IOException) -> hPutStrLn stderr "Failure trying to disconnect from Yampa socket")
 
 conditionVMStep cenv =
-  sendToYampaSocketAsync (extra cenv) "Step"
+  sendToYampaSocketAsync (extra cenv) (show Step)
 
 conditionVMSkip cenv =
-  sendToYampaSocketAsync (extra cenv) "Skip"
+  sendToYampaSocketAsync (extra cenv) (show Skip)
 
 conditionVMStepUntil cenv =
-  sendToYampaSocketAsync (extra cenv) "StepUntil"
+  sendToYampaSocketAsync (extra cenv) (show StepUntil)
 
 conditionVMSkipBack cenv =
-  sendToYampaSocketAsync (extra cenv) "SkipBack"
+  sendToYampaSocketAsync (extra cenv) (show SkipBack)
 
 conditionVMRedo cenv =
-  sendToYampaSocketAsync (extra cenv) "Redo"
+  sendToYampaSocketAsync (extra cenv) (show Redo)
 
 conditionVMPlay cenv =
-  sendToYampaSocketAsync (extra cenv) "Play"
+  sendToYampaSocketAsync (extra cenv) (show Play)
 
 conditionVMStop cenv =
-  sendToYampaSocketAsync (extra cenv) "Stop"
+  sendToYampaSocketAsync (extra cenv) (show Stop)
 
 conditionVMPause cenv =
-  sendToYampaSocketAsync (extra cenv) "Pause"
+  sendToYampaSocketAsync (extra cenv) (show Pause)
 
 conditionVMDeleteTrace cenv =
-  sendToYampaSocketAsync (extra cenv) "DeleteTrace"
+  sendToYampaSocketAsync (extra cenv) (show DeleteTrace)
 
 conditionVMReplayTrace cenv =
-  sendToYampaSocketAsync (extra cenv) "ReplayTrace"
+  sendToYampaSocketAsync (extra cenv) (show ReplayTrace)
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
