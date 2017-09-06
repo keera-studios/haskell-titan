@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module IOBridge where
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
