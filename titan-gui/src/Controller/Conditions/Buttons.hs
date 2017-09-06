@@ -130,7 +130,7 @@ conditionVMRefineTrace cenv = return ()
 
 -- gtkBuilderAccessor "toolBtnDiscardFuture"      "Button"
 installConditionDiscardFuture cenv = void $ do
-  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+  let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
 
   btn <- toolButtonActivateField <$> toolBtnDiscardFuture (uiBuilder (view cenv))
   (btn `governingR` curFrameField') =:> conditionVMDiscardFuture cenv
@@ -179,7 +179,7 @@ conditionVMSaveTraceUpToFrame cenv = do
 
 -- gtkBuilderAccessor "toolBtnTravelToFrame"      "Button"
 installConditionTravelToFrame cenv = void $ do
-  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+  let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
 
   btn <- toolButtonActivateField <$> toolBtnTravelToFrame (uiBuilder (view cenv))
   (btn `governingR` curFrameField') =:> conditionVMTravelToFrame cenv
@@ -191,7 +191,7 @@ conditionVMTravelToFrame cenv (Just i) = do
 
 -- gtkBuilderAccessor "toolBtnTeleportToFrame"    "Button"
 installConditionTeleportToFrame cenv = void $ do
-  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+  let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
 
   btn <- toolButtonActivateField <$> toolBtnTeleportToFrame (uiBuilder (view cenv))
   (btn `governingR` curFrameField') =:> conditionVMTeleportToFrame cenv
@@ -203,7 +203,7 @@ conditionVMTeleportToFrame cenv (Just i) = do
 
 -- gtkBuilderAccessor "toolBtnIOSenseFrame"       "Button"
 installConditionIOSenseFrame cenv = void $ do
-  let curFrameField' = mkFieldAccessor selectedFrameField      (model cenv)
+  let curFrameField' = mkFieldAccessor selectedFrameField (model cenv)
 
   btn <- toolButtonActivateField <$> toolBtnIOSenseFrame (uiBuilder (view cenv))
   (btn `governingR` curFrameField') =:> conditionVMIOSenseFrame cenv
@@ -217,6 +217,7 @@ conditionVMIOSenseFrame cenv (Just i) = do
 installConditionModifyTime cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnModifyTime (uiBuilder (view cenv))
   btn =:> conditionVMModifyTime cenv
+
 conditionVMModifyTime :: CEnv -> IO ()
 conditionVMModifyTime cenv = return ()
 
