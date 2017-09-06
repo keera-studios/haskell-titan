@@ -5,6 +5,7 @@ module FRP.Titan.Debug.CommTCP
   where
 
 -- External modules
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
