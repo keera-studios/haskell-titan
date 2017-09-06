@@ -186,7 +186,7 @@ installConditionTravelToFrame cenv = void $ do
 
 conditionVMTravelToFrame :: CEnv -> Maybe Int -> IO ()
 conditionVMTravelToFrame cenv Nothing  = return ()
-conditionVMTravelToFrame cenv (Just i) = do
+conditionVMTravelToFrame cenv (Just i) =
   sendToYampaSocketAsync (extra cenv) ("TravelToFrame " ++ show i)
 
 -- gtkBuilderAccessor "toolBtnTeleportToFrame"    "Button"
