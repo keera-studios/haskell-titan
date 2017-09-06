@@ -17,6 +17,7 @@ import System.IO
 import CombinedEnvironment
 import IOBridge
 import Model.Model (defaultFrame)
+import FRP.Titan.Protocol
 
 installCondition :: CEnv -> IO ()
 installCondition cenv = do
@@ -361,30 +362,3 @@ conditionVMReplayTrace cenv =
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
-
--- Basic Titan Protocol
-
-data Response = CurrentFrame   Int
-              | CurrentHistory Int
-              | CurrentTime    Float
-              | MaxTime        Float
-  deriving Read
-
-data TitanEvent = HistoryChanched
-  deriving Read
-
-data TitanCommand = GetMaxTime
-                  | GetCurrentTime
-                  | GetCurrentFrame
-                  | SummarizeHistory
-                  | Step
-                  | Skip
-                  | StepUntil
-                  | SkipBack
-                  | Redo
-                  | Play
-                  | Stop
-                  | Pause
-                  | DeleteTrace
-                  | ReplayTrace
-  deriving Show
