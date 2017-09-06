@@ -25,4 +25,8 @@ data TitanCommand = GetMaxTime
                   | Pause
                   | DeleteTrace
                   | ReplayTrace
+                  | TravelToFrame Int
+                  | JumpTo Int
+                  | IOSense Int
+                  | DiscardFuture Int
   deriving Show
