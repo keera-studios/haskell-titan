@@ -89,6 +89,7 @@ conditionVMSaveTrace cenv = onViewAsync $ do
 installConditionLoadTrace cenv = void $ do
   btn <- toolButtonActivateField <$> toolBtnLoadTrace (uiBuilder (view cenv))
   btn =:> conditionVMLoadTrace cenv
+
 conditionVMLoadTrace :: CEnv -> IO ()
 conditionVMLoadTrace cenv = do
   window <- mainWindow (uiBuilder (view cenv))
@@ -327,7 +328,6 @@ conditionVMHistoryChanged cenv = do
                                    reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
     _                        -> do putStrLn "Could not read any number of frames"
                                    reactiveValueWrite fs []
-
 
 conditionVMDisconnect cenv =
   catch (stopYampaSocket (extra cenv))
