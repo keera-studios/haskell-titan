@@ -56,6 +56,10 @@ You'll need GTK with glade installed. On Ubuntu you can:
 $ apt-get install libglade2-dev
 ```
 
+## Related Papers
+
+- [Testing and debugging functional reactive programming](https://dl.acm.org/citation.cfm?id=3110246)
+
 # Collaborations
 
 Please, send pull requests and file bugs.
