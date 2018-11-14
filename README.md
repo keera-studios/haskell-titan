@@ -41,7 +41,7 @@ It's easier to get started with an example:
 
 ```
 $ git clone https://github.com/keera-studios/haskell-titan
-$ cd haskel-titan
+$ cd haskell-titan
 $ git clone https://github.com/ivanperez-keera/Yampa
 $ cabal sandbox init
 $ cabal install Yampa/ -fexpose-core
