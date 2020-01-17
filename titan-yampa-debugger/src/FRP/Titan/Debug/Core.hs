@@ -26,7 +26,7 @@ import Control.Monad.Trans.State
 import Data.Maybe
 import FRP.Yampa                 (SF, DTime, evalAtZero, evalAt)
 
-import Extra
+import Data.Extra
 import FRP.Titan.Debug.Comm
 import FRP.Titan.Debug.Command
 import FRP.Titan.Debug.Preferences

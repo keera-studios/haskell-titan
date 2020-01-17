@@ -7,7 +7,7 @@ import Control.Monad
 import Data.Maybe
 import FRP.Yampa                 (SF, FutureSF, DTime)
 
-import Extra
+import Data.Extra
 import FRP.Titan.Debug.Comm
 
 data History a b = History
