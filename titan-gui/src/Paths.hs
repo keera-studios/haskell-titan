@@ -4,7 +4,7 @@
 module Paths (getDataFileName) where
 
 -- These imports are necessary only in Windows
-#ifndef linux_HOST_OS
+#if !defined(linux_HOST_OS) && !defined(darwin_HOST_OS)
 import System.Win32.Types
 import System.Win32.Registry
 
@@ -19,7 +19,7 @@ import Control.Exception.Extra (anyway)
 import qualified Paths.CustomPaths as P
 
 -- This code is only used in Windows. It depends on the Windows registry
-#ifndef linux_HOST_OS
+#if !defined(linux_HOST_OS) && !defined(darwin_HOST_OS)
 -- // parse a string from a registry value of certain type
 parseRegString :: RegValueType -> LPBYTE -> IO String
 parseRegString ty mem
@@ -40,7 +40,7 @@ foreign import stdcall unsafe "windows.h ExpandEnvironmentStringsW"
   c_ExpandEnvironmentStrings :: LPCTSTR -> LPTSTR -> DWORD -> IO DWORD
 
 getAppKey :: IO HKEY
-getAppKey = 
+getAppKey =
   handle
    (anyway (openKey hKEY_LOCAL_MACHINE regPath))
    (openKey hKEY_CURRENT_USER regPath)
@@ -64,8 +64,8 @@ getAppPathFromReg =
 
 -- This part is OS-dependent
 getDataDir :: IO FilePath
-getDataDir =  
-#ifndef linux_HOST_OS
+getDataDir =
+#if !defined(linux_HOST_OS) && !defined(darwin_HOST_OS)
   handle (anyway P.getDataDir) $ do
     fp <- getAppPathFromReg
     return (fp ++ pathSeparator:"data")
@@ -90,7 +90,7 @@ joinFileName dir fname
 
 pathSeparator :: Char
 pathSeparator =
-#ifndef linux_HOST_OS
+#if !defined(linux_HOST_OS) && !defined(darwin_HOST_OS)
   '\\'
 #else
   '/'
