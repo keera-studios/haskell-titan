@@ -33,9 +33,16 @@ flag examples
   manual: True
 
 library
-  exposed-modules:     FRP.Titan.Debug.Core
-                       FRP.Titan.Debug.Comm
-                       FRP.Titan.Debug.CommTCP
+  exposed-modules:
+    Data.Extra
+    FRP.Titan.Debug.Comm
+    FRP.Titan.Debug.Command
+    FRP.Titan.Debug.CommTCP
+    FRP.Titan.Debug.Core
+    FRP.Titan.Debug.History
+    FRP.Titan.Debug.Predicates
+    FRP.Titan.Debug.Preferences
+    FRP.Titan.Debug.SimMonad
   build-depends:       base >=4.7 && < 4.11,
                        Yampa,
                        network,
