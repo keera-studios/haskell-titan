@@ -39,6 +39,7 @@ library
   build-depends:       base >=4.7 && < 4.11,
                        Yampa,
                        network,
+                       network-bsd,
                        transformers,
                        IfElse,
                        stm
