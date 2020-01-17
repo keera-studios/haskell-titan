@@ -43,7 +43,7 @@ library
     FRP.Titan.Debug.Predicates
     FRP.Titan.Debug.Preferences
     FRP.Titan.Debug.SimMonad
-  build-depends:       base >=4.7 && < 4.11,
+  build-depends:       base >=4.7 && < 4.13,
                        Yampa,
                        network,
                        network-bsd,

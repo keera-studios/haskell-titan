@@ -31,7 +31,7 @@ data-files: data/*.glade
 executable titan-gui
   main-is:             Main.hs
   ghc-options:         -threaded -Wall -O2
-  build-depends:       base >=4.7 && < 4.11,
+  build-depends:       base >=4.7 && < 4.13,
                        keera-hails-reactivevalues,
                        keera-hails-mvc-controller,
                        keera-hails-mvc-view,
@@ -59,7 +59,7 @@ library
 
   -- Modules exported by the library.
   Exposed-modules: Graphics.UI.Gtk.StreamChart
-  build-depends:   base >=4.7 && < 4.11,
+  build-depends:   base >=4.7 && < 4.13,
                    gtk,
                    cairo,
                    glib
