@@ -5,15 +5,10 @@ module FRP.Titan.Debug.CommTCP
   where
 
 -- External modules
-import Control.Applicative
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TChan
 import Control.Exception
 import Control.Monad
-import Data.Bits
-import Data.List
 import Data.Maybe
 import Network.BSD
 import Network.Socket
@@ -84,7 +79,7 @@ serveSync port handlerGet handlerSend = withSocketsDo $
      sock <- socket (addrFamily serveraddr) Stream defaultProtocol
 
      -- Bind it to the address we're listening to
-     bindSocket sock (addrAddress serveraddr)
+     bind sock (addrAddress serveraddr)
 
      -- Start listening for connection requests.  Maximum queue size
      -- of 5 connection requests waiting to be accepted.
@@ -167,7 +162,7 @@ serveAsync port handlerfunc = withSocketsDo $
      sock <- socket (addrFamily serveraddr) Stream defaultProtocol
 
      -- Bind it to the address we're listening to
-     bindSocket sock (addrAddress serveraddr)
+     bind sock (addrAddress serveraddr)
 
      -- Start listening for connection requests.  Maximum queue size
      -- of 5 connection requests waiting to be accepted.
