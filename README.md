@@ -69,3 +69,12 @@ implementation, please consider adding a new backend for this project so that
 we can join efforts. That way our efforts will be more likely to help you, and
 yours will also help us. There's always some extra effort from trying to
 collaborate with others, but it's totally worth it :)
+
+# Copyright
+
+This software is the Copyright of Keera Studios Ltd. It is released under GPL-3 license.
+
+If you find this license too restrictive for the environment where you need to
+use Haskell Titan or to create an extension, please contact us at
+support@keera.co.uk and provide details about your case. We may be able to
+grant an exception.
