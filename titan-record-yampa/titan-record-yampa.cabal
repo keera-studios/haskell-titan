@@ -2,7 +2,7 @@ cabal-version: >= 1.10
 build-type:    Simple
 
 name:          titan-record-yampa
-version:       0.1.0.0
+version:       1.0.0
 author:        Ivan Perez
 maintainer:    ivan.perez@keera.co.uk
 homepage:      http://github.com/keera-studios/haskell-titan

@@ -2,7 +2,7 @@ cabal-version: >= 1.10
 build-type:    Simple
 
 name:          titan
-version:       0.0.1.0
+version:       1.0.0
 author:        Ivan Perez
 maintainer:    ivan.perez@keera.co.uk
 homepage:      http://github.com/keera-studios/haskell-titan
@@ -91,6 +91,9 @@ test-suite hlint
   hs-source-dirs:
     tests
 
+  default-language:
+    Haskell2010
+
   if !flag(test-hlint)
     buildable:
       False
@@ -115,11 +118,14 @@ test-suite haddock-coverage
     , process
     , regex-posix
 
-  ghc-options:
-    -Wall
-
   hs-source-dirs:
     tests
+
+  default-language:
+    Haskell2010
+
+  ghc-options:
+    -Wall
 
   if !flag(test-doc-coverage)
     buildable:

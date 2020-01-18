@@ -2,12 +2,13 @@ cabal-version: >= 1.10
 build-type:    Simple
 
 name:          titan-debug-yampa
-version:       0.1.0.0
+version:       1.0.0
 author:        Ivan Perez
 maintainer:    ivan.perez@keera.co.uk
 homepage:      http://github.com/keera-studios/haskell-titan
 copyright:
   All Rights Reserved (c) 2018 - 2020 Keera Studios Ltd
+  .
   All Rights Reserved (c) 2015 - 2017 Ivan Perez Dominguez
 license:       GPL-3
 license-file:  LICENSE

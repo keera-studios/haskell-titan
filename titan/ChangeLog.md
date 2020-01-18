@@ -1,4 +1,4 @@
-# Revision history for titan-yampa-bridge
+# Revision history for titan
 
 ## 1.0.0  -- 2020-01-18
 
