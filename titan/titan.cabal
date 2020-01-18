@@ -91,6 +91,9 @@ test-suite hlint
   hs-source-dirs:
     tests
 
+  default-language:
+    Haskell2010
+
   if !flag(test-hlint)
     buildable:
       False
@@ -115,11 +118,14 @@ test-suite haddock-coverage
     , process
     , regex-posix
 
-  ghc-options:
-    -Wall
-
   hs-source-dirs:
     tests
+
+  default-language:
+    Haskell2010
+
+  ghc-options:
+    -Wall
 
   if !flag(test-doc-coverage)
     buildable:
