@@ -79,7 +79,7 @@ invalidateStreamChart (StreamChart da _) = do
 
 streamChartRenderBlocksCairo :: (a -> StreamChartStyle) -> [a] -> Render ()
 streamChartRenderBlocksCairo rSettingsF bs = streamChartRenderBlocksCairo' rSettingsF bs 0
-    
+
 streamChartRenderBlocksCairo' :: (a -> StreamChartStyle) -> [a] -> Double -> Render ()
 streamChartRenderBlocksCairo' rSettingsF []      baseX = return ()
 streamChartRenderBlocksCairo' rSettingsF (bk:bs) baseX = do
@@ -103,11 +103,11 @@ streamChartRenderBlocksCairo' rSettingsF (bk:bs) baseX = do
   when (isJust $ renderLetter rSettings) $ do
     let x = fromJust $ renderLetter rSettings
     te <- textExtents [x]
-    let textW = textExtentsWidth te 
-        textH = textExtentsHeight te 
+    let textW = textExtentsWidth te
+        textH = textExtentsHeight te
     setSourceRGBA 0.0 0.0 0.0 1.0
     moveTo (baseX + 10 - (textW / 2)) (40 - (textExtentsYbearing te / 2)) -- (40 - textH / 2)
-    showText [x] 
+    showText [x]
 
     liftIO (print $ textExtentsXbearing te)
     liftIO (print $ textExtentsYbearing te)
@@ -116,14 +116,14 @@ streamChartRenderBlocksCairo' rSettingsF (bk:bs) baseX = do
 
 streamChartOnButtonEvent :: StreamChart a -> (Bool -> Int -> IO ()) -> IO ()
 streamChartOnButtonEvent (StreamChart da scRef) handler = do
-  da `on` buttonPressEvent   $ myHandler (handler True)
-  da `on` buttonReleaseEvent $ myHandler (handler False)
-  return ()
-
-myHandler :: (Int -> IO ()) -> EventM EButton Bool
-myHandler handler = do
-  (x,y) <- eventCoordinates
-  let x' = round x
-      y' = round y
-  liftIO $ postGUIAsync $ handler (x' `div` 20)
-  return False
+    da `on` buttonPressEvent   $ myHandler (handler True)
+    da `on` buttonReleaseEvent $ myHandler (handler False)
+    return ()
+  where
+    myHandler :: (Int -> IO ()) -> EventM EButton Bool
+    myHandler handler = do
+      (x,y) <- eventCoordinates
+      let x' = round x
+          y' = round y
+      liftIO $ postGUIAsync $ handler (x' `div` 20)
+      return False

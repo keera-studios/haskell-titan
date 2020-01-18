@@ -40,11 +40,13 @@ flag examples
 
 library
   exposed-modules:
+    FRP.Titan.Debug.CommTCP
+    FRP.Titan.Debug.Yampa
+
+  other-modules:
     Data.Extra
     FRP.Titan.Debug.Comm
     FRP.Titan.Debug.Command
-    FRP.Titan.Debug.CommTCP
-    FRP.Titan.Debug.Core
     FRP.Titan.Debug.History
     FRP.Titan.Debug.Predicates
     FRP.Titan.Debug.Preferences

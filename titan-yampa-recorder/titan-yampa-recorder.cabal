@@ -34,7 +34,7 @@ source-repository head
 library
 
   exposed-modules:
-    FRP.Yampa.Record
+    FRP.Titan.Record.Yampa
 
   build-depends:
       base  >= 4.8 && < 4.13
