@@ -1,0 +1,100 @@
+cabal-version: >= 1.10
+build-type:    Simple
+
+name:          titan-debug-yampa
+version:       1.0.0
+author:        Ivan Perez
+maintainer:    ivan.perez@keera.co.uk
+homepage:      http://github.com/keera-studios/haskell-titan
+copyright:
+  All Rights Reserved (c) 2018 - 2020 Keera Studios Ltd
+  .
+  All Rights Reserved (c) 2015 - 2017 Ivan Perez Dominguez
+license:       GPL-3
+license-file:  LICENSE
+category:      Testing
+synopsis:      Testing Infrastructure for Temporal AbstractioNs - Interactive Yampa debugging layer.
+description:
+  Yampa debugger that allows you to run an FRP program and control its
+  execution.
+  .
+  TITAN (Testing Infrastructure for Temporal AbstractioNs) is a framework to
+  test and debug FRP programs. It allows you to write temporal unit tests, check
+  them, QuickCheck them, run FRP programs with a fine-tuned debugger, obtain
+  information to replicate tests, and follow and control the execution of a
+  Yampa program from an interactive GUI.
+  .
+  This library provides a replacement function for Yampa's standard simulation
+  function (@reactimate@), enabling debugging.
+  .
+  It also provides a definition of the standard communication interface with
+  the debugging GUI, and a default implementation of a communication bridge
+  suitable for standalone desktop applications using TCP sockets.
+
+extra-source-files:
+  ChangeLog.md
+
+source-repository head
+  type:     git
+  location: git://github.com/keera-studios/haskell-titan.git
+
+flag examples
+  default: False
+  manual:  True
+
+library
+  exposed-modules:
+    FRP.Titan.Debug.CommTCP
+    FRP.Titan.Debug.Yampa
+
+  other-modules:
+    Data.Extra
+    FRP.Titan.Debug.Comm
+    FRP.Titan.Debug.Command
+    FRP.Titan.Debug.History
+    FRP.Titan.Debug.Predicates
+    FRP.Titan.Debug.Preferences
+    FRP.Titan.Debug.SimMonad
+
+  build-depends:
+      base         >=4.7 && < 4.13
+    , IfElse
+    , network
+    , network-bsd
+    , stm
+    , transformers
+    , Yampa
+
+  default-language:
+    Haskell2010
+
+  hs-source-dirs:
+    src
+
+  ghc-options:
+    -Wall -O2
+
+executable titan-debug-yampa-example-bouncing-ball
+
+  main-is:
+    BouncingBall.hs
+
+  build-depends:
+      base                 < 5
+    , SDL
+    , SDL-gfx
+    , Yampa
+    , titan-debug-yampa
+
+  hs-source-dirs:
+    examples/
+
+  default-language:
+    Haskell2010
+
+  ghc-options:
+    -O3 -Wall -fno-warn-name-shadowing -rtsopts -threaded
+
+  if !flag(examples)
+    buildable:
+      False
