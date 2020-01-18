@@ -1,5 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module FRP.Yampa.Record where
+-- | Replacement of Yampa's reactimate function with recod-and-replay
+-- capabilities.
+module FRP.Titan.Record.Yampa
+    ( reactimateRecord
+    , RecordMode(..)
+    )
+  where
 
 import Control.Exception
 import Control.Monad
@@ -8,6 +14,9 @@ import Data.Maybe
 import FRP.Yampa
 import System.IO
 
+-- | How to treat the given trace: read (replay) but not write to it,
+--   write (record) but not replay it, and readwrite (replay until the end
+--   and the continue recording to it).
 data RecordMode = RecordReadOnly
                 | RecordWriteOnly
                 | RecordReadWrite
@@ -20,11 +29,11 @@ recordMustRead RecordWriteOnly = False
 recordMustRead _               = True
 
 reactimateRecord :: (Read a, Show a)
-                 => Maybe (FilePath, RecordMode)
-                 -> IO a
-                 -> (Bool -> IO (DTime, Maybe a)) 
-                 -> (Bool -> b -> IO Bool)    
-                 -> SF a b   
+                 => Maybe (FilePath, RecordMode)    -- ^ Debug: File onto which the result should be recorded and recording mode
+                 -> IO a                            -- ^ FRP: Initial sensing action
+                 -> (Bool -> IO (DTime, Maybe a))   -- ^ FRP: Continued sensing action
+                 -> (Bool -> b -> IO Bool)          -- ^ FRP: Rendering/consumption action
+                 -> SF a b                          -- ^ FRP: Signal Function that defines the program
                  -> IO ()
 reactimateRecord Nothing sense0 sense actuate sf = reactimate sense0 sense actuate sf
 reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
@@ -55,7 +64,7 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
 
   let newSense b = do
         as  <- sense b
-        
+
         as' <- if recordMustRead mode
                 then do sample <- readIORef samplesRef
                         case sample of
@@ -65,7 +74,7 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
                 else return as
 
         when (recordMustWrite mode) $ do
-          curSamples <- readIORef newSamplesRef 
+          curSamples <- readIORef newSamplesRef
           writeIORef newSamplesRef (curSamples ++ [as'])
 
         return as'
@@ -80,7 +89,7 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
             Just s0 -> length curSamples `seq` writeFile fp (show (s0, curSamples))
         return last
 
-  (maybe 0 (length.snd) samples) `seq` 
+  (maybe 0 (length.snd) samples) `seq`
     reactimate newSense0 newSense newActuate sf
 
 maybeRead :: Read a => String -> Maybe a

@@ -3,18 +3,20 @@
 
 -- | Replacement of Yampa's @reactimate@ function with more fine-tuned
 -- control and debugging capabilities.
-module FRP.Titan.Debug.Core
+--
+-- See "FRP.Titan.Debug.CommTCP" for a communication bridge using TCP
+-- sockets.
+module FRP.Titan.Debug.Yampa
     (
       -- * Debugging
       reactimateControl
-      -- ** Debugging commands
-    , Command(..)
-      -- *** Debugging command queue
-    , getCommand
-    , pushCommand
+      -- ** Communication bridge
+    , ExternalBridge(..)
       -- ** Debugging preferences
     , Preferences(..)
     , defaultPreferences
+      -- ** Debugging commands
+    , Command
       -- ** Debugging predicates
     , Pred(..)
     )
@@ -34,8 +36,6 @@ import FRP.Titan.Debug.Predicates
 import FRP.Titan.Debug.History
 import FRP.Titan.Debug.SimMonad
 
--- * Interactive reactimation
-
 -- Yampa is based on SFs and FutureSFs. The former is an SF that can be turned on by
 -- providing an input signal, the latter is one that is already on, so it also
 -- needs to know the time deltas between samples.
@@ -48,7 +48,7 @@ reactimateControl :: forall p a b
                   .  (Read p, Show p, Show a, Read a, Show b, Read b, Pred p a b)
                   => ExternalBridge                 -- ^ Debug: Communication bridge for the interactive GUI
                   -> Preferences                    -- ^ Debug: Debugging preferences
-                  -> [Command p]                    -- ^ Debug: List of commands to execute
+                  -> [Command p]                    -- ^ Debug: List of commands (exposed only to facilitate fixing the type of predicates p)
                   -> IO a                           -- ^ FRP:   Initial sensing action
                   -> (Bool -> IO (DTime, Maybe a))  -- ^ FRP:   Continued sensing action
                   -> (Bool -> b -> IO Bool)         -- ^ FRP:   Rendering/consumption action
@@ -340,4 +340,3 @@ reactimateDebugStep = do
         simPrint ("CORE: Condition became true, with " ++ show (dt, a0) ++ " (" ++ show b0 ++ ")")
         simSendEvent  "ConditionMet"
       return cond
-
