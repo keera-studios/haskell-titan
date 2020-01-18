@@ -1,7 +1,7 @@
 cabal-version: >= 1.10
 build-type:    Simple
 
-name:          titan-yampa-debugger
+name:          titan-debug-yampa
 version:       0.1.0.0
 author:        Ivan Perez
 maintainer:    ivan.perez@keera.co.uk
@@ -70,7 +70,7 @@ library
   ghc-options:
     -Wall -O2
 
-executable titan-yampa-debugger-example-bouncing-ball
+executable titan-debug-yampa-example-bouncing-ball
 
   main-is:
     BouncingBall.hs
@@ -80,7 +80,7 @@ executable titan-yampa-debugger-example-bouncing-ball
     , SDL
     , SDL-gfx
     , Yampa
-    , titan-yampa-debugger
+    , titan-debug-yampa
 
   hs-source-dirs:
     examples/
