@@ -12,8 +12,8 @@ import Graphics.UI.Gtk.Reactive
 import Graphics.UI.Gtk.Reactive.Gtk2
 import Hails.MVC.Model.ProtectedModel.Reactive
 import System.IO
+import Text.Read                               (readMaybe)
 
-import Auxiliary
 import CombinedEnvironment
 import IOBridge
 
@@ -44,7 +44,7 @@ installConditionInput cenv = do
       Just ix -> do
         let command = "GetInput " ++ show (ix :: Int)
         n <- sendToYampaSocketSync (extra cenv) command
-        case n >>= maybeRead of
+        case n >>= readMaybe of
           Just (Just x) -> do putStrLn ("Want to show " ++ show x)
                               postGUIAsync $ do reactiveValueWrite txtFrameInput' x
                                                 reactiveValueWrite curFrameInputField' (Just x)
@@ -76,7 +76,7 @@ installConditionShowTime cenv = do
         Just ix -> do
           let command = "GetGTime " ++ show (ix :: Int)
           n <- sendToYampaSocketSync (extra cenv) command
-          case n >>= maybeRead of
+          case n >>= readMaybe of
             Just (Just x) -> do putStrLn ("Want to show " ++ show x)
                                 postGUIAsync $ reactiveValueWrite txtFrameTime' (show (x :: Double))
             _      -> postGUIAsync $ reactiveValueWrite txtFrameTime' ""
@@ -92,7 +92,7 @@ installConditionShowDTime cenv = do
        Just ix -> do
          let command = "GetDTime " ++ show (ix :: Int)
          n <- sendToYampaSocketSync (extra cenv) command
-         case n >>= maybeRead of
+         case n >>= readMaybe of
            Just (Just x) -> do putStrLn ("Want to show " ++ show x)
                                postGUIAsync $ reactiveValueWrite txtFrameDTime' (show (x :: Double))
            _      -> postGUIAsync $ reactiveValueWrite txtFrameDTime' ""

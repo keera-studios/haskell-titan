@@ -13,8 +13,8 @@ import Graphics.UI.Gtk.Reactive.Gtk2
 import Hails.MVC.Model.ProtectedModel.Reactive
 import Hails.Polling
 import System.IO
+import Text.Read                               (readMaybe)
 
-import Auxiliary
 import CombinedEnvironment
 import FRP.Titan.Protocol
 import IOBridge
@@ -78,7 +78,7 @@ conditionVMSaveTrace cenv = onViewAsync $ do
                            Nothing   -> putStrLn "Nothing"
                            Just path -> do putStrLn ("New file path is:\n" ++ path)
                                            n <- sendToYampaSocketSync (extra cenv) "GetTrace"
-                                           case n >>= maybeRead of
+                                           case n >>= readMaybe of
                                              Just (Just s) -> writeFile path s
                                              _             -> return ()
     ResponseDeleteEvent -> putStrLn "You closed the dialog window..."
@@ -293,7 +293,7 @@ conditionVMMaxTimeChanged cenv = do
   entryGT <- txtMaxTime (uiBuilder (view cenv))
   maxTime <- sendToYampaSocketSync (extra cenv) (show GetMaxTime)
   putStrLn $ "Received " ++ show maxTime
-  case maxTime >>= maybeRead of
+  case maxTime >>= readMaybe of
     Just (MaxTime time) -> postGUIAsync $ entrySetText entryGT $ show time
     _                   -> return ()
 
@@ -302,7 +302,7 @@ conditionVMTimeChanged cenv = do
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
   curTime <- sendToYampaSocketSync (extra cenv) (show GetCurrentTime)
   putStrLn $ "Received " ++ show curTime
-  case curTime >>= maybeRead of
+  case curTime >>= readMaybe of
     Just (CurrentTime time) -> postGUIAsync $ entrySetText entryGT $ show time
     _                       -> return ()
 
@@ -311,7 +311,7 @@ conditionVMFrameChanged cenv = do
   let curSimFrame' = mkFieldAccessor curSimFrameField (model cenv)
   entryGT <- txtGlobalTime (uiBuilder (view cenv))
   n       <- sendToYampaSocketSync (extra cenv) (show GetCurrentFrame)
-  case n >>= maybeRead of
+  case n >>= readMaybe of
     Just (CurrentFrame m') -> do putStrLn $ "Current Frame is " ++ show m'
                                  reactiveValueWrite curSimFrame' (Just m')
     _                      -> reactiveValueWrite curSimFrame' Nothing
@@ -323,7 +323,7 @@ conditionVMHistoryChanged cenv = do
   let fs = mkFieldAccessor framesField (model cenv)
   n <- sendToYampaSocketSync (extra cenv) (show SummarizeHistory)
   putStrLn $ "Received " ++ show n
-  case n >>= maybeRead of
+  case n >>= readMaybe of
     Just (CurrentHistory m') -> do putStrLn $ "Show have now " ++ show m' ++ " frames"
                                    reactiveValueWrite fs $ map defaultFrame [0..(m'-1)]
     _                        -> do putStrLn "Could not read any number of frames"
