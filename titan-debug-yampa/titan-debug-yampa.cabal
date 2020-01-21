@@ -42,6 +42,10 @@ flag examples
   default: False
   manual:  True
 
+flag bearriver
+  default: False
+  manual:  True
+
 library
   exposed-modules:
     FRP.Titan.Debug.CommTCP
@@ -63,7 +67,6 @@ library
     , network-bsd
     , stm
     , transformers
-    , Yampa
 
   default-language:
     Haskell2010
@@ -73,6 +76,13 @@ library
 
   ghc-options:
     -Wall -O2
+
+  if flag(bearriver)
+    build-depends:
+      bearriver
+  else
+    build-depends:
+      Yampa
 
 executable titan-debug-yampa-example-bouncing-ball
 
@@ -95,6 +105,6 @@ executable titan-debug-yampa-example-bouncing-ball
   ghc-options:
     -O3 -Wall -fno-warn-name-shadowing -rtsopts -threaded
 
-  if !flag(examples)
+  if !flag(examples) || !flag(bearriver)
     buildable:
       False
