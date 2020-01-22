@@ -2,7 +2,7 @@ cabal-version: >= 1.10
 build-type:    Simple
 
 name:          titan
-version:       1.0.0
+version:       1.0.2
 author:        Ivan Perez
 maintainer:    ivan.perez@keera.co.uk
 homepage:      http://github.com/keera-studios/haskell-titan
@@ -48,6 +48,60 @@ executable titan
 
   main-is:
     Main.hs
+
+  other-modules:
+    CombinedEnvironment
+    Controller
+    Controller.Conditions
+    Controller.Conditions.Buttons
+    Controller.Conditions.CloseIDE
+    Controller.Conditions.CurFrameInfo
+    Controller.Conditions.TraceViewer
+    FRP.Titan.Protocol
+    Graphics.UI.Gtk.GtkView
+    Graphics.UI.Gtk.StreamChart
+    Graphics.UI.View
+    Hails.Graphics.UI.Gtk.Builder
+    Hails.Graphics.UI.Gtk.Helpers.Combo
+    Hails.Graphics.UI.Gtk.Helpers.FileDialog
+    Hails.Graphics.UI.Gtk.Helpers.MenuItem
+    Hails.Graphics.UI.Gtk.Helpers.MessageDialog
+    Hails.Graphics.UI.Gtk.Reactive
+    Hails.Graphics.UI.Gtk.Simplify.AboutDialog
+    Hails.Graphics.UI.Gtk.Simplify.Logger
+    Hails.Graphics.UI.Gtk.Simplify.NameAndVersionTitleBar
+    Hails.Graphics.UI.Gtk.Simplify.ProgramMainWindow
+    Hails.Graphics.UI.Gtk.Simplify.ReactiveGtk
+    Hails.Graphics.UI.Gtk.Simplify.RootLogger
+    Hails.Graphics.UI.Gtk.Simplify.UpdateCheck
+    Hails.Graphics.UI.Gtk.Simplify.VersionNumberTitleBar
+    Hails.Graphics.UI.Gtk.THBuilderAccessor
+    Hails.I18N.Gettext
+    Hails.I18N.Language
+    Hails.MVC.Controller.ConditionDirection
+    Hails.MVC.Controller.Conditions.Config
+    Hails.MVC.Controller.Reactive
+    Hails.MVC.DefaultGtkEnvironment
+    Hails.MVC.GenericCombinedEnvironment
+    Hails.MVC.Model.THAccessors
+    Hails.MVC.Model.THFields
+    Hails.MVC.View.DefaultView
+    Hails.MVC.View.GladeView
+    Hails.MVC.View.GtkView
+    Hails.MVC.View.Reactive
+    IOBridge
+    Model.Model
+    Model.ProtectedModel
+    Model.ProtectedModel.ProtectedFields
+    Model.ProtectedModel.ProtectedModelInternals
+    Model.ReactiveModel
+    Model.ReactiveModel.ModelEvents
+    Model.ReactiveModel.ReactiveFields
+    Model.ReactiveModel.ReactiveModelInternals
+    Paths
+    Paths.CustomPaths
+    View
+    View.Objects
 
   build-depends:
       base              >=4.7 && < 4.13
