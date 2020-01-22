@@ -86,7 +86,7 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
           curSamples <- readIORef newSamplesRef
           case curSample0 of
             Nothing -> return ()
-            Just s0 -> length curSamples `seq` writeFile fp (show (s0, curSamples))
+            Just s0 -> length curSamples `seq` writeFile' fp (show (s0, curSamples))
         return last
 
   (maybe 0 (length.snd) samples) `seq`
@@ -94,3 +94,11 @@ reactimateRecord (Just (fp, mode)) sense0 sense actuate sf = do
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
+
+-- | Strict-er version of writeFile that flushes the handle.
+writeFile' :: FilePath -> String -> IO ()
+writeFile' fp contents = do
+  inFile <- openFile fp WriteMode
+  hPutStr inFile contents
+  hFlush inFile
+  hClose inFile
