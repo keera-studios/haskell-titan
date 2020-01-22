@@ -62,33 +62,13 @@ executable titan
     Graphics.UI.Gtk.StreamChart
     Graphics.UI.View
     Hails.Graphics.UI.Gtk.Builder
-    Hails.Graphics.UI.Gtk.Helpers.Combo
-    Hails.Graphics.UI.Gtk.Helpers.FileDialog
-    Hails.Graphics.UI.Gtk.Helpers.MenuItem
-    Hails.Graphics.UI.Gtk.Helpers.MessageDialog
-    Hails.Graphics.UI.Gtk.Reactive
-    Hails.Graphics.UI.Gtk.Simplify.AboutDialog
-    Hails.Graphics.UI.Gtk.Simplify.Logger
-    Hails.Graphics.UI.Gtk.Simplify.NameAndVersionTitleBar
-    Hails.Graphics.UI.Gtk.Simplify.ProgramMainWindow
-    Hails.Graphics.UI.Gtk.Simplify.ReactiveGtk
-    Hails.Graphics.UI.Gtk.Simplify.RootLogger
-    Hails.Graphics.UI.Gtk.Simplify.UpdateCheck
-    Hails.Graphics.UI.Gtk.Simplify.VersionNumberTitleBar
     Hails.Graphics.UI.Gtk.THBuilderAccessor
-    Hails.I18N.Gettext
-    Hails.I18N.Language
-    Hails.MVC.Controller.ConditionDirection
-    Hails.MVC.Controller.Conditions.Config
-    Hails.MVC.Controller.Reactive
     Hails.MVC.DefaultGtkEnvironment
     Hails.MVC.GenericCombinedEnvironment
-    Hails.MVC.Model.THAccessors
     Hails.MVC.Model.THFields
     Hails.MVC.View.DefaultView
     Hails.MVC.View.GladeView
     Hails.MVC.View.GtkView
-    Hails.MVC.View.Reactive
     IOBridge
     Model.Model
     Model.ProtectedModel
