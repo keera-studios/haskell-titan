@@ -1,6 +1,10 @@
 -- | Communication bridges between the debugger running locally attached
 --   to a Yampa application and the debugging GUI running remotely on
 --   your machine.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Debug.Comm
     ( ExternalBridge(..)
     , getAllMessages

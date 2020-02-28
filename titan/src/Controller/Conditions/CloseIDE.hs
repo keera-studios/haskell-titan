@@ -1,5 +1,8 @@
 -- | Condition: The program ends when the main window is closed
-
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Controller.Conditions.CloseIDE
     (installCondition)
   where

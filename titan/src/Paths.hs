@@ -1,6 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-
+-- |
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Paths (getDataFileName) where
 
 -- These imports are necessary only in Windows

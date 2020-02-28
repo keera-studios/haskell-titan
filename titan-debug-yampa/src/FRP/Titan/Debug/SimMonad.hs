@@ -1,4 +1,8 @@
 -- | Simulation State
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Debug.SimMonad where
 
 import Control.Monad.Trans.Class

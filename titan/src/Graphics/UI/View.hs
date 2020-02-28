@@ -5,7 +5,10 @@
 -- It works fine, but I doubt it's a good solution in the long term. In
 -- particular, I do not like having to use the dummy type Null to define the
 -- Class.
-
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Graphics.UI.View where
 
 -- | Null is a parametric datatype with a non-parametric constructor.

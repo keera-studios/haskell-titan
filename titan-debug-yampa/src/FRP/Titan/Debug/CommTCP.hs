@@ -1,5 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Communicate Yampa game and debugging GUI via TCP
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Debug.CommTCP
     ( mkTitanCommTCPBridge )
   where

@@ -2,6 +2,10 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 
 -- | Debugging predicates
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Debug.Predicates where
 
 

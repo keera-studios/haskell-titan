@@ -1,6 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Replacement of Yampa's reactimate function with recod-and-replay
 -- capabilities.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Record.Yampa
     ( reactimateRecord
     , RecordMode(..)

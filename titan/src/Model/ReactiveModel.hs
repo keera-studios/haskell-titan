@@ -5,6 +5,10 @@
 -- doesn't have its own thread), although a facility is included to
 -- make it also concurrent (so that event handlers can be called as
 -- soon as they are present).
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Model.ReactiveModel
    ( ReactiveModel
    -- * Construction

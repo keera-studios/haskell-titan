@@ -1,4 +1,8 @@
 -- | Contains basic operations related to the GUI
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Hails.MVC.View.GtkView where
 
 -- External libraries
