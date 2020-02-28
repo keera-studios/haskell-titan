@@ -1,5 +1,9 @@
 -- | The TraceViewer contains the rules that create and keep the
 --   GUI stream widget in sync with the trace in the model.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Controller.Conditions.TraceViewer where
 
 import Data.ReactiveValue

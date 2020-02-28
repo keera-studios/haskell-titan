@@ -1,3 +1,8 @@
+-- |
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Model.ReactiveModel.ModelEvents where
 
 import qualified Hails.MVC.Model.ReactiveModel as GRM

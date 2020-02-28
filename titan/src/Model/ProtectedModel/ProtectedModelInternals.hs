@@ -1,6 +1,9 @@
 -- | Contains the protected model definition used by other modules to
 -- declare the protected fields.
 --
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Model.ProtectedModel.ProtectedModelInternals
    ( ProtectedModel
    , GPM.onReactiveModel

@@ -1,6 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- | This module holds the functions to access and modify the project name
 -- in a reactive model.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Model.ProtectedModel.ProtectedFields where
 
 -- Internal imports

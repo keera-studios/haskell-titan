@@ -1,3 +1,8 @@
+-- |
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module Hails.Graphics.UI.Gtk.THBuilderAccessor where
 
 import Language.Haskell.TH.Syntax

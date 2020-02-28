@@ -1,6 +1,10 @@
 -- | This contains the main controller. Many operations will be
 -- implemented in the Controller.* subsystem. This module simply
 -- initialises program.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 
 -- FIXME: A debug version could be included as a separate controller.
 
@@ -24,7 +28,7 @@ startController :: IO ()
 startController = do
   -- Uncomment the following line if you need to debug errors
   -- handleGError (\(GError _ _ em) -> putStrLn em) $ do
-  
+
     -- Initialise the visual layer
     initView
 
@@ -34,7 +38,7 @@ startController = do
 
     -- Install the model and view handlers
     installHandlers cenv
-  
+
     -- Notify the system's initialisation
     initialiseSystem $ model cenv
 

@@ -6,6 +6,10 @@
 --
 -- See "FRP.Titan.Debug.CommTCP" for a communication bridge using TCP
 -- sockets.
+--
+-- Copyright   : (C) Keera Studios Ltd, 2018
+-- License     : GPL-3
+-- Maintainer  : support@keera.co.uk
 module FRP.Titan.Debug.Yampa
     (
       -- * Debugging
