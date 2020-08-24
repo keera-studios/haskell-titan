@@ -62,7 +62,6 @@ executable titan
     Controller.Conditions.TraceViewer
     FRP.Titan.Protocol
     Graphics.UI.Gtk.GtkView
-    Graphics.UI.Gtk.StreamChart
     Graphics.UI.View
     Hails.Graphics.UI.Gtk.Builder
     Hails.Graphics.UI.Gtk.THBuilderAccessor
@@ -91,6 +90,7 @@ executable titan
     , cairo
     , glib
     , gtk
+    , gtk-helpers
     , IfElse
     , mtl
     , network
